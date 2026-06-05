@@ -6,7 +6,7 @@ function registerQuestionBankHandler(bot) {
     type: "question_bank",
     prefix: "qb",
     menuLabel: MAIN_MENU_OPTIONS.questionBank,
-    title: "📚 Question Bank",
+    title: "📚 Question Bank & Answers",
   });
 }
 

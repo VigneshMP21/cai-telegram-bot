@@ -6,7 +6,7 @@ function registerStudyMaterialHandler(bot) {
     type: "study_materials",
     prefix: "sm",
     menuLabel: MAIN_MENU_OPTIONS.studyMaterials,
-    title: "📖 Study Materials",
+    title: "📖 Question Bank",
   });
 }
 

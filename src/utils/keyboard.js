@@ -2,9 +2,9 @@ const { Markup } = require("telegraf");
 const { buildSubjectCallbackData } = require("./callbackData");
 
 const MAIN_MENU_OPTIONS = {
-  questionBank: "📚 Question Bank",
+  questionBank: "📚 Question Bank & Answers",
   bitBank: "📝 Bit Bank",
-  studyMaterials: "📖 Study Materials",
+  studyMaterials: "📖 Question Bank",
   syllabus: "📋 Syllabus",
 };
 
