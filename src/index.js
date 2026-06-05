@@ -1,5 +1,6 @@
 require("dotenv").config();
 
+const express = require("express");
 const { Telegraf } = require("telegraf");
 
 const { registerStartCommand } = require("./commands/start");
@@ -14,7 +15,13 @@ if (!token) {
   throw new Error("BOT_TOKEN is required to start the Telegram bot.");
 }
 
+const app = express();
+const PORT = process.env.PORT || 3000;
 const bot = new Telegraf(token);
+
+app.get("/", (req, res) => {
+  res.send("CAI Telegram Bot Running");
+});
 
 registerStartCommand(bot);
 registerQuestionBankHandler(bot);
@@ -29,8 +36,12 @@ bot.catch((error, ctx) => {
   });
 });
 
-bot.launch().then(() => {
-  console.log("[CAI_BOT] Bot started.");
+bot.launch(() => {
+  console.log("Bot Started");
+});
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
 
 process.once("SIGINT", () => bot.stop("SIGINT"));
