@@ -4,7 +4,7 @@ const { buildSubjectCallbackData } = require("./callbackData");
 const MAIN_MENU_OPTIONS = {
   questionBank: "📚 Question Bank & Answers",
   bitBank: "📝 Bit Bank",
-  studyMaterials: "📖 Question Bank",
+  studyMaterials: "📖 Question Banks",
   syllabus: "📋 Syllabus",
 };
 
