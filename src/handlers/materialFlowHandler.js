@@ -1,3 +1,10 @@
+const axios = require("axios");
+const {
+  addInfinityFreeRetryParam,
+  isInfinityFreeChallenge,
+  solveInfinityFreeChallenge,
+} = require("../utils/infinityFree");
+
 const {
   getMaterial,
   getSemesters,
@@ -126,21 +133,57 @@ async function handleSubjectSelection(ctx, config, semester, subject) {
     return ctx.reply(API_FAILURE_MESSAGE);
   }
 
+  console.log("Material Object:");
+  console.log(JSON.stringify(material, null, 2));
+
+  console.log("File URL:");
+  console.log(material?.file_url);
+
   if (!material?.file_url) {
     return ctx.reply(FILE_MISSING_MESSAGE);
   }
 
   const caption = `${config.title}\n\n📖 Subject:\n${subject}\n\n🎓 Semester:\n${semester}`;
 
+  let fileResponse;
+
   try {
-    await ctx.replyWithDocument(material.file_url, { caption });
+    console.log("Downloading File:", material.file_url);
+
+    fileResponse = await downloadFileStream(material.file_url);
   } catch (error) {
-    console.error("[CAI_BOT] Failed to send document", {
+    console.error("Axios Download Error");
+    console.error(error);
+    console.error(error?.response);
+    console.error(error?.response?.status);
+    console.error(error?.response?.headers);
+    return ctx.reply(FILE_MISSING_MESSAGE);
+  }
+
+  try {
+    console.log("Sending File To Telegram");
+
+    await ctx.replyWithDocument(
+      {
+        source: fileResponse.data,
+        filename: `${subject}.pdf`,
+      },
+      {
+        caption,
+      }
+    );
+  } catch (error) {
+    console.error("Telegram Document Error");
+    console.error(error);
+    console.error(error?.response);
+    console.error(error?.description);
+    console.error("[CAI_BOT] Telegram Document Context", {
       materialType: config.type,
       semester,
       subject,
       fileUrl: material.file_url,
-      error: error?.message || error,
+      telegramResponse: error?.response,
+      telegramDescription: error?.description,
     });
     return ctx.reply(FILE_MISSING_MESSAGE);
   }
@@ -178,6 +221,66 @@ function logApiError(ctx, action, config, error) {
     action,
     materialType: config.type,
     apiError: error?.message || error,
+  });
+}
+
+async function downloadFileStream(fileUrl) {
+  const response = await axios.get(fileUrl, {
+    responseType: "stream",
+    timeout: 30000,
+  });
+
+  if (!isHtmlResponse(response)) {
+    return response;
+  }
+
+  const html = await streamToString(response.data);
+
+  if (!isInfinityFreeChallenge(html)) {
+    throw new Error(
+      `File URL returned HTML instead of a document. Content-Type: ${
+        response.headers?.["content-type"] || "unknown"
+      }`
+    );
+  }
+
+  const cookie = solveInfinityFreeChallenge(html);
+
+  if (!cookie) {
+    throw new Error("Unable to solve InfinityFree file download challenge.");
+  }
+
+  const retryResponse = await axios.get(addInfinityFreeRetryParam(fileUrl), {
+    responseType: "stream",
+    timeout: 30000,
+    headers: {
+      Cookie: cookie,
+    },
+  });
+
+  if (isHtmlResponse(retryResponse)) {
+    retryResponse.data.destroy();
+    throw new Error("InfinityFree file download retry returned HTML.");
+  }
+
+  return retryResponse;
+}
+
+function isHtmlResponse(response) {
+  return String(response.headers?.["content-type"] || "")
+    .toLowerCase()
+    .includes("text/html");
+}
+
+function streamToString(stream) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+
+    stream.on("data", (chunk) => {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    });
+    stream.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    stream.on("error", reject);
   });
 }
 
