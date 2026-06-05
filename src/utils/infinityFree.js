@@ -10,7 +10,7 @@ function isInfinityFreeChallenge(payload) {
 
 function solveInfinityFreeChallenge(html) {
   const match = html.match(
-    /var a=toNumbers\("([a-f0-9]+)"\),b=toNumbers\("([a-f0-9]+)"\),c=toNumbers\("([a-f0-9]+)"\)/i
+    /var\s+a\s*=\s*toNumbers\("([a-f0-9]+)"\)\s*,\s*b\s*=\s*toNumbers\("([a-f0-9]+)"\)\s*,\s*c\s*=\s*toNumbers\("([a-f0-9]+)"\)/i
   );
 
   if (!match) {

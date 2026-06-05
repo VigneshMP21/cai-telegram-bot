@@ -7,14 +7,17 @@ const {
 const API_BASE_URL =
   process.env.CAI_API_BASE_URL || "https://sietkcai.infinityfreeapp.com/api";
 const API_TIMEOUT_MS = Number(process.env.CAI_API_TIMEOUT_MS || 15000);
+const DEFAULT_HEADERS = {
+  Accept: "application/json, text/plain, */*",
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+};
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: API_TIMEOUT_MS,
-  validateStatus: (status) => status >= 200 && status < 500,
-  headers: {
-    Accept: "application/json",
-  },
+  validateStatus: () => true,
+  headers: DEFAULT_HEADERS,
 });
 
 let infinityFreeCookie = null;
@@ -58,13 +61,17 @@ async function getMaterial(type, semester, subject) {
 }
 
 async function request(endpoint, params) {
-  const response = await apiClient.get(endpoint, {
+  const response = await getWithNetworkRetry(endpoint, {
     params,
     headers: buildRequestHeaders(),
   });
   const payload = parsePayload(response.data);
 
   if (!isInfinityFreeChallenge(payload)) {
+    if (response.status >= 500) {
+      throw new Error(`CAI API request failed with status ${response.status}.`);
+    }
+
     return payload;
   }
 
@@ -74,7 +81,7 @@ async function request(endpoint, params) {
     throw new Error("Unable to solve InfinityFree API challenge.");
   }
 
-  const retryResponse = await apiClient.get(endpoint, {
+  const retryResponse = await getWithNetworkRetry(endpoint, {
     params: { ...params, i: 1 },
     headers: buildRequestHeaders(),
   });
@@ -84,7 +91,29 @@ async function request(endpoint, params) {
     throw new Error("InfinityFree API challenge retry failed.");
   }
 
+  if (retryResponse.status >= 500) {
+    throw new Error(`CAI API retry failed with status ${retryResponse.status}.`);
+  }
+
   return retryPayload;
+}
+
+async function getWithNetworkRetry(endpoint, options) {
+  try {
+    return await apiClient.get(endpoint, options);
+  } catch (error) {
+    if (!isRetryableNetworkError(error)) {
+      throw error;
+    }
+
+    console.error("[CAI_BOT] API network error, retrying once", {
+      endpoint,
+      code: error.code,
+      message: error.message,
+    });
+
+    return apiClient.get(endpoint, options);
+  }
 }
 
 function parsePayload(payload) {
@@ -107,12 +136,23 @@ function parsePayload(payload) {
 
 function buildRequestHeaders() {
   if (!infinityFreeCookie) {
-    return {};
+    return DEFAULT_HEADERS;
   }
 
   return {
+    ...DEFAULT_HEADERS,
     Cookie: infinityFreeCookie,
   };
+}
+
+function isRetryableNetworkError(error) {
+  return [
+    "ECONNRESET",
+    "ETIMEDOUT",
+    "ECONNABORTED",
+    "EAI_AGAIN",
+    "ENOTFOUND",
+  ].includes(error?.code);
 }
 
 function normalizeList(payload, collectionKeys, valueKeys) {

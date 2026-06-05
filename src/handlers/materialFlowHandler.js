@@ -20,6 +20,11 @@ const { logBotEvent } = require("../utils/logger");
 const API_FAILURE_MESSAGE = "⚠️ Unable to connect to server.";
 const NO_RECORDS_MESSAGE = "❌ No records found.";
 const FILE_MISSING_MESSAGE = "❌ File not available.";
+const DOWNLOAD_HEADERS = {
+  Accept: "application/pdf, application/octet-stream, text/html, */*",
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+};
 
 function registerMaterialFlow(bot, config) {
   bot.hears(config.menuLabel, (ctx) => handleMenuSelection(ctx, config));
@@ -228,9 +233,16 @@ async function downloadFileStream(fileUrl) {
   const response = await axios.get(fileUrl, {
     responseType: "stream",
     timeout: 30000,
+    validateStatus: () => true,
+    headers: DOWNLOAD_HEADERS,
   });
 
   if (!isHtmlResponse(response)) {
+    if (response.status >= 400) {
+      response.data.destroy();
+      throw new Error(`File download failed with status ${response.status}.`);
+    }
+
     return response;
   }
 
@@ -253,7 +265,9 @@ async function downloadFileStream(fileUrl) {
   const retryResponse = await axios.get(addInfinityFreeRetryParam(fileUrl), {
     responseType: "stream",
     timeout: 30000,
+    validateStatus: () => true,
     headers: {
+      ...DOWNLOAD_HEADERS,
       Cookie: cookie,
     },
   });
@@ -261,6 +275,11 @@ async function downloadFileStream(fileUrl) {
   if (isHtmlResponse(retryResponse)) {
     retryResponse.data.destroy();
     throw new Error("InfinityFree file download retry returned HTML.");
+  }
+
+  if (retryResponse.status >= 400) {
+    retryResponse.data.destroy();
+    throw new Error(`File download retry failed with status ${retryResponse.status}.`);
   }
 
   return retryResponse;
