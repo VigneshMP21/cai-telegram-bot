@@ -24,6 +24,15 @@ const STUDENT_NAME_KEYS = [
   "fullName",
 ];
 
+const STUDENT_FOUND_KEYS = [
+  "found",
+  "exists",
+  "student_found",
+  "studentFound",
+  "is_found",
+  "isFound",
+];
+
 const PHOTO_URL_KEYS = [
   "photo_url",
   "photoUrl",
@@ -134,9 +143,6 @@ const OVERALL_STAT_KEYS = {
     "absent",
   ],
 };
-const ROLL_NOT_FOUND_PATTERN =
-  /(?:roll(?:\s+number)?|student).*?(?:not\s+found|not\s+matched|does\s+not\s+exist)|(?:not\s+found|not\s+matched).*?(?:roll(?:\s+number)?|student)|invalid\s+(?:roll|student)|no\s+(?:student|roll)(?:\s+(?:record|data))?/i;
-
 async function getAttendance(rollNo, month, year) {
   const payload = await request("/get_attendance.php", {
     roll_no: rollNo,
@@ -147,52 +153,113 @@ async function getAttendance(rollNo, month, year) {
   return normalizeAttendance(payload, month, year);
 }
 
-async function checkRollNumberExists(rollNo) {
-  const payload = await request("/get_attendance.php", {
+async function checkStudent(rollNo) {
+  const payload = await request("/check_student.php", {
     roll_no: rollNo,
+    roll_number: rollNo,
   });
 
-  return normalizeRollNumberExists(payload);
+  return normalizeStudent(payload, rollNo);
 }
 
-function normalizeRollNumberExists(payload) {
+function normalizeStudent(payload, rollNo) {
   const body = parsePayload(payload);
 
-  if (body == null) {
-    return false;
+  if (isNoDataResponse(body)) {
+    return null;
   }
 
-  if (typeof body === "string") {
-    return !ROLL_NOT_FOUND_PATTERN.test(body);
+  if (hasExplicitFalse(body, STUDENT_FOUND_KEYS)) {
+    return null;
   }
 
-  if (Array.isArray(body)) {
-    return body.length > 0;
-  }
-
-  if (!isPlainObject(body)) {
-    return false;
-  }
-
-  const message = toCleanString(pickValue(body, ["message", "error"]));
-
-  if (message && ROLL_NOT_FOUND_PATTERN.test(message)) {
-    return false;
-  }
-
-  const status = toCleanString(pickValue(body, ["status", "success"]));
-
-  if (/^(false|0|failed|failure|error|not_found|no_data)$/i.test(status)) {
-    return true;
+  if (hasEmptyData(body)) {
+    return null;
   }
 
   const record = unwrapRecord(body);
 
-  if (isPlainObject(record)) {
+  if (!isPlainObject(record)) {
+    return null;
+  }
+
+  if (hasExplicitFalse(record, STUDENT_FOUND_KEYS)) {
+    return null;
+  }
+
+  const status = toCleanString(pickValue(body, ["status", "success"]));
+
+  if (
+    record === body &&
+    !/^(true|1|success|ok)$/i.test(status) &&
+    !hasStudentIdentity(record)
+  ) {
+    return null;
+  }
+
+  return {
+    rollNo:
+      toCleanString(
+        pickValue(record, ["roll_no", "rollNo", "roll_number", "rollNumber"])
+      ) || rollNo,
+    studentName:
+      toCleanString(pickValue(record, STUDENT_NAME_KEYS)) ||
+      toCleanString(pickValue(body, STUDENT_NAME_KEYS)) ||
+      "Student",
+    photoUrl:
+      toCleanString(pickValue(record, PHOTO_URL_KEYS)) ||
+      toCleanString(pickValue(body, PHOTO_URL_KEYS)) ||
+      null,
+  };
+}
+
+function hasEmptyData(value) {
+  const body = parsePayload(value);
+
+  if (!isPlainObject(body) || !Object.hasOwn(body, "data")) {
+    return false;
+  }
+
+  const data = body.data;
+
+  if (data == null) {
     return true;
   }
 
-  return /^(true|1|success|ok)$/i.test(status);
+  if (Array.isArray(data)) {
+    return data.length === 0;
+  }
+
+  if (isPlainObject(data)) {
+    return Object.keys(data).length === 0;
+  }
+
+  return false;
+}
+
+function hasStudentIdentity(record) {
+  return Boolean(
+    toCleanString(
+      pickValue(record, [
+        "roll_no",
+        "rollNo",
+        "roll_number",
+        "rollNumber",
+        ...STUDENT_NAME_KEYS,
+        ...PHOTO_URL_KEYS,
+      ])
+    )
+  );
+}
+
+function hasExplicitFalse(value, keys) {
+  const rawValue = pickValue(value, keys);
+
+  if (rawValue == null || rawValue === "") {
+    return false;
+  }
+
+  return /^(false|0|no|not_found|missing)$/i.test(String(rawValue).trim());
 }
 
 function normalizeAttendance(payload, month, year) {
@@ -394,6 +461,6 @@ function isPlainObject(value) {
 }
 
 module.exports = {
-  checkRollNumberExists,
+  checkStudent,
   getAttendance,
 };

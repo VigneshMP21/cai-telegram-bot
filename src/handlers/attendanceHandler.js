@@ -1,5 +1,5 @@
 const {
-  checkRollNumberExists,
+  checkStudent,
   getAttendance,
 } = require("../services/attendanceService");
 const { MAIN_MENU_OPTIONS } = require("../utils/keyboard");
@@ -25,39 +25,21 @@ const MONTH_NAMES = [
   "December",
 ];
 
-const ROLL_NUMBER_PROMPT = `━━━━━━━━━━━━━━━
-<b>📊 ATTENDANCE CHECK</b>
-
-Please enter your Roll Number.
+const ROLL_NUMBER_PROMPT = `🆔 <b>Enter Your Roll Number</b>
 
 Example:
-<code>23F61Axxxx</code>
-━━━━━━━━━━━━━━━`;
+<code>23CS001</code>`;
 
-const MONTH_PROMPT = `━━━━━━━━━━━━━━━
-<b>📅 SELECT MONTH</b>
+const ROLL_NUMBER_NOT_FOUND_MESSAGE = `❌ <b>Roll Number Not Found</b>
 
-Enter Month and Year in this format:
-
-<code>MM, YYYY</code>
-
-Examples:
-
-<code>06, 2025</code>
-<code>07, 2025</code>
-<code>12, 2025</code>
-━━━━━━━━━━━━━━━`;
-
-const INVALID_ROLL_NUMBER_MESSAGE = `❌ Invalid Roll Number.
-
-Roll number must be exactly 10 characters.
+Please enter a valid roll number.
 
 Example:
-<code>23F61Axxxx</code>`;
+<code>23CS001</code>`;
 
-const INVALID_MONTH_MESSAGE = `❌ Invalid format.
+const INVALID_MONTH_MESSAGE = `⚠️ <b>Invalid Format</b>
 
-Please enter:
+Please enter month as:
 
 <code>MM, YYYY</code>
 
@@ -99,7 +81,12 @@ function registerAttendanceHandler(bot) {
     }
 
     if (attendanceState.step === "month") {
-      return handleMonthSelection(ctx, messageText, attendanceState.rollNo);
+      return handleMonthSelection(
+        ctx,
+        messageText,
+        attendanceState.rollNo,
+        attendanceState.student
+      );
     }
 
     clearAttendanceSession(ctx);
@@ -132,13 +119,13 @@ async function handleRollNumber(ctx, messageText) {
       action: "Invalid Roll Number",
       rollNumber: messageText,
     });
-    return ctx.reply(INVALID_ROLL_NUMBER_MESSAGE, HTML_OPTIONS);
+    return ctx.reply(ROLL_NUMBER_NOT_FOUND_MESSAGE, HTML_OPTIONS);
   }
 
-  let rollNumberExists;
+  let student;
 
   try {
-    rollNumberExists = await checkRollNumberExists(rollNo);
+    student = await checkStudent(rollNo);
   } catch (error) {
     logBotEvent(ctx, {
       action: "Roll Number Check Failed",
@@ -148,29 +135,31 @@ async function handleRollNumber(ctx, messageText) {
     return ctx.reply(API_FAILURE_MESSAGE);
   }
 
-  if (!rollNumberExists) {
+  if (!student) {
     logBotEvent(ctx, {
-      action: "Roll Number Not Matched",
+      action: "Roll Number Not Found",
       rollNumber: rollNo,
     });
-    return ctx.reply(buildRollNotMatchedMessage(rollNo), HTML_OPTIONS);
+    return ctx.reply(ROLL_NUMBER_NOT_FOUND_MESSAGE, HTML_OPTIONS);
   }
 
   ctx.session.attendance = {
     step: "month",
     rollNo,
+    student,
   };
 
   logBotEvent(ctx, {
-    action: "Roll Number Captured",
+    action: "Student Found",
     rollNumber: rollNo,
+    studentName: student.studentName,
     attendanceStep: "Month",
   });
 
-  return ctx.reply(MONTH_PROMPT, HTML_OPTIONS);
+  return ctx.reply(buildStudentFoundMessage(student), HTML_OPTIONS);
 }
 
-async function handleMonthSelection(ctx, messageText, rollNo) {
+async function handleMonthSelection(ctx, messageText, rollNo, student = null) {
   const selectedMonth = parseMonthSelection(messageText);
 
   if (!selectedMonth) {
@@ -213,6 +202,8 @@ async function handleMonthSelection(ctx, messageText, rollNo) {
     return ctx.reply(buildNoDataMessage(month, year), HTML_OPTIONS);
   }
 
+  attendance = applyStudentFallback(attendance, student);
+
   return sendAttendanceReport(ctx, attendance);
 }
 
@@ -230,6 +221,35 @@ async function sendAttendanceReport(ctx, attendance) {
   }
 
   return ctx.reply(buildAttendanceMessage(attendance), HTML_OPTIONS);
+}
+
+function buildStudentFoundMessage(student) {
+  return `✅ <b>Student Found</b>
+
+👤 ${escapeHtml(student.studentName)}
+
+Now enter month in the format:
+
+<code>MM, YYYY</code>
+
+Example:
+
+<code>06, 2025</code>`;
+}
+
+function applyStudentFallback(attendance, student) {
+  if (!student) {
+    return attendance;
+  }
+
+  return {
+    ...attendance,
+    studentName:
+      attendance.studentName && attendance.studentName !== "Student"
+        ? attendance.studentName
+        : student.studentName,
+    photoUrl: attendance.photoUrl || student.photoUrl || null,
+  };
 }
 
 function buildAttendanceMessage(attendance) {
@@ -264,23 +284,14 @@ ${ATTENDANCE_SEPARATOR}
 Keep up the good work and stay consistent.`;
 }
 
-function buildRollNotMatchedMessage(rollNo) {
-  return `❌ Roll Number Not Matched
-
-No student record found for:
-<b>${escapeHtml(rollNo)}</b>
-
-Please check your roll number and try again.`;
-}
-
 function buildNoDataMessage(month, year) {
-  return `❌ Attendance Details Not Found
+  return `❌ <b>Attendance Not Available</b>
 
 In <b>${escapeHtml(getMonthName(month))}, ${escapeHtml(
     year
   )}</b> attendance details not found.
 
-You can check in the portal also.
+You can also check in the portal:
 
 ${PORTAL_URL}`;
 }
@@ -299,7 +310,7 @@ function parseMonthSelection(messageText) {
 }
 
 function isValidRollNumber(rollNo) {
-  return /^[A-Z0-9]{10}$/.test(rollNo);
+  return /^[A-Z0-9]{3,20}$/.test(rollNo);
 }
 
 function isMainMenuSelection(messageText) {
