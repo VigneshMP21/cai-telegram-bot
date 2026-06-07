@@ -2,6 +2,7 @@ const { API_BASE_URL, post, postJson, request } = require("./apiService");
 
 const VERSION_ENDPOINT = "/get_bot_version.php";
 const SAVE_USER_ENDPOINT = "/save_bot_user.php";
+const GET_USER_ENDPOINT = "/get_bot_user.php";
 const UPDATE_USER_VERSION_ENDPOINT = "/update_user_version.php";
 
 const VERSION_KEYS = ["version", "latest_version", "latestVersion", "bot_version"];
@@ -69,6 +70,34 @@ async function saveBotUser(user) {
   });
 
   return mappedUser;
+}
+
+async function getBotUser(user) {
+  const normalizedUser = normalizeUser(user);
+  const requestPayload = {
+    telegram_user_id: normalizedUser.telegramUserId,
+  };
+  const requestUrl = buildApiUrl(GET_USER_ENDPOINT);
+
+  console.log("[CAI_BOT] getBotUser URL", requestUrl);
+  console.log("[CAI_BOT] getBotUser payload", requestPayload);
+
+  let responseBody;
+
+  try {
+    responseBody = await postJson(GET_USER_ENDPOINT, requestPayload);
+    console.log("[CAI_BOT] getBotUser response body", responseBody);
+  } catch (error) {
+    console.error("[CAI_BOT] getBotUser error.response.data", {
+      status: error?.response?.status || null,
+      data: error?.response?.data || null,
+    });
+    throw error;
+  }
+
+  const payload = assertSuccessfulPayload(responseBody, "get bot user");
+
+  return normalizeUserVersionPayload(payload, normalizedUser);
 }
 
 async function updateUserVersion(user, latestVersion) {
@@ -388,6 +417,7 @@ function isPlainObject(value) {
 
 module.exports = {
   getLatestVersion,
+  getBotUser,
   saveBotUser,
   updateUserVersion,
 };

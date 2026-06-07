@@ -1,4 +1,5 @@
 const {
+  getBotUser,
   getLatestVersion,
   saveBotUser,
   updateUserVersion,
@@ -45,11 +46,19 @@ function createVersionCheckMiddleware() {
 
       console.log(saveUserPayload);
 
-      const savedUser = await saveBotUser(saveUserPayload);
-      console.log("BOT USER RESPONSE");
-      console.log(savedUser);
+      await saveBotUser(saveUserPayload);
 
-      currentVersion = String(savedUser.lastVersionSeen || "").trim();
+      const userData = await getBotUser(saveUserPayload);
+
+      console.log("CURRENT USER DATA");
+      console.log(userData);
+
+      currentVersion = String(userData.lastVersionSeen || "").trim();
+
+      console.log("CURRENT VERSION");
+      console.log(currentVersion);
+      console.log("LATEST VERSION");
+      console.log(latestVersionValue);
     } catch (error) {
       logBotEvent(ctx, {
         action: "Bot User Save Failed",
@@ -243,16 +252,20 @@ async function markVersionCompleted(ctx, user, currentVersion, latestVersion) {
     console.log(updateResponse);
     console.log("VERSION UPDATED SUCCESSFULLY");
 
-    const refreshedUser = await saveBotUser({
+    const refreshedUser = await getBotUser({
       telegramUserId: user.telegramUserId,
       username: user.username,
     });
-    console.log("REFRESHED BOT USER RESPONSE");
+    console.log("CURRENT USER DATA");
     console.log(refreshedUser);
 
     const refreshedVersion = String(refreshedUser.lastVersionSeen || "").trim();
     const versionActivated = refreshedVersion === latestVersion;
 
+    console.log("CURRENT VERSION");
+    console.log(refreshedVersion);
+    console.log("LATEST VERSION");
+    console.log(latestVersion);
     console.log({
       currentVersion: refreshedVersion,
       latestVersion,
