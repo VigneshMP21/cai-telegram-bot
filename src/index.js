@@ -1,9 +1,11 @@
 require("dotenv").config();
 
 const express = require("express");
-const { Telegraf } = require("telegraf");
+const { Telegraf, session } = require("telegraf");
 
 const { registerStartCommand } = require("./commands/start");
+const registerAttendanceHandler = require("./handlers/attendanceHandler");
+const registerTimetableHandler = require("./handlers/timetableHandler");
 const registerQuestionBankHandler = require("./handlers/questionBankHandler");
 const registerBitBankHandler = require("./handlers/bitBankHandler");
 const registerStudyMaterialHandler = require("./handlers/studyMaterialHandler");
@@ -19,11 +21,15 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const bot = new Telegraf(token);
 
+bot.use(session());
+
 app.get("/", (req, res) => {
   res.send("CAI Telegram Bot Running");
 });
 
 registerStartCommand(bot);
+registerAttendanceHandler(bot);
+registerTimetableHandler(bot);
 registerQuestionBankHandler(bot);
 registerBitBankHandler(bot);
 registerStudyMaterialHandler(bot);

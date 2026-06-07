@@ -322,6 +322,8 @@ function isPlainObject(value) {
 }
 
 module.exports = {
+  API_BASE_URL,
+  request,
   getSemesters,
   getSubjects,
   getMaterial,

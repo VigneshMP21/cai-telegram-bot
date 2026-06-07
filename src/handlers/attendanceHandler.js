@@ -1,0 +1,286 @@
+const { getAttendance } = require("../services/attendanceService");
+const { MAIN_MENU_OPTIONS } = require("../utils/keyboard");
+const { logBotEvent } = require("../utils/logger");
+
+const PORTAL_URL = "https://sietkcai.infinityfreeapp.com/attendance.php";
+const HTML_OPTIONS = {
+  parse_mode: "HTML",
+  disable_web_page_preview: true,
+};
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+const ROLL_NUMBER_PROMPT = `━━━━━━━━━━━━━━━
+<b>📊 ATTENDANCE CHECK</b>
+
+Please enter your Roll Number.
+
+Example:
+<code>23CS001</code>
+━━━━━━━━━━━━━━━`;
+
+const MONTH_PROMPT = `━━━━━━━━━━━━━━━
+<b>📅 SELECT MONTH</b>
+
+Enter Month and Year in this format:
+
+<code>MM, YYYY</code>
+
+Examples:
+
+<code>06, 2025</code>
+<code>07, 2025</code>
+<code>12, 2025</code>
+━━━━━━━━━━━━━━━`;
+
+const INVALID_ROLL_NUMBER_MESSAGE = `❌ Invalid Roll Number.
+
+Please enter a valid roll number.`;
+
+const INVALID_MONTH_MESSAGE = `❌ Invalid format.
+
+Please enter:
+
+<code>MM, YYYY</code>
+
+Example:
+
+<code>06, 2025</code>`;
+
+const API_FAILURE_MESSAGE =
+  "⚠️ Unable to fetch attendance details. Please try again later.";
+
+function registerAttendanceHandler(bot) {
+  bot.hears(MAIN_MENU_OPTIONS.attendance, handleAttendanceMenu);
+
+  bot.on("text", async (ctx, next) => {
+    const attendanceState = ctx.session?.attendance;
+
+    if (!attendanceState) {
+      return next();
+    }
+
+    const messageText = ctx.message.text.trim();
+
+    if (isMainMenuSelection(messageText)) {
+      clearAttendanceSession(ctx);
+      return next();
+    }
+
+    if (attendanceState.step === "roll_number") {
+      return handleRollNumber(ctx, messageText);
+    }
+
+    if (attendanceState.step === "month") {
+      return handleMonthSelection(ctx, messageText, attendanceState.rollNo);
+    }
+
+    clearAttendanceSession(ctx);
+    return next();
+  });
+}
+
+async function handleAttendanceMenu(ctx) {
+  if (!ctx.session) {
+    ctx.session = {};
+  }
+
+  ctx.session.attendance = {
+    step: "roll_number",
+  };
+
+  logBotEvent(ctx, {
+    selectedMenu: MAIN_MENU_OPTIONS.attendance,
+    attendanceStep: "Roll Number",
+  });
+
+  return ctx.reply(ROLL_NUMBER_PROMPT, HTML_OPTIONS);
+}
+
+async function handleRollNumber(ctx, messageText) {
+  const rollNo = messageText.toUpperCase();
+
+  if (!isValidRollNumber(rollNo)) {
+    logBotEvent(ctx, {
+      action: "Invalid Roll Number",
+      rollNumber: messageText,
+    });
+    return ctx.reply(INVALID_ROLL_NUMBER_MESSAGE);
+  }
+
+  ctx.session.attendance = {
+    step: "month",
+    rollNo,
+  };
+
+  logBotEvent(ctx, {
+    action: "Roll Number Captured",
+    rollNumber: rollNo,
+    attendanceStep: "Month",
+  });
+
+  return ctx.reply(MONTH_PROMPT, HTML_OPTIONS);
+}
+
+async function handleMonthSelection(ctx, messageText, rollNo) {
+  const selectedMonth = parseMonthSelection(messageText);
+
+  if (!selectedMonth) {
+    logBotEvent(ctx, {
+      action: "Invalid Attendance Month Format",
+      rollNumber: rollNo,
+      monthInput: messageText,
+    });
+    return ctx.reply(INVALID_MONTH_MESSAGE, HTML_OPTIONS);
+  }
+
+  const { month, year } = selectedMonth;
+
+  logBotEvent(ctx, {
+    action: "Attendance Request",
+    rollNumber: rollNo,
+    month,
+    year,
+  });
+
+  let attendance;
+
+  try {
+    attendance = await getAttendance(rollNo, month, year);
+  } catch (error) {
+    logBotEvent(ctx, {
+      action: "Attendance Request Failed",
+      rollNumber: rollNo,
+      month,
+      year,
+      apiError: error?.message || error,
+    });
+    clearAttendanceSession(ctx);
+    return ctx.reply(API_FAILURE_MESSAGE);
+  }
+
+  clearAttendanceSession(ctx);
+
+  if (!attendance) {
+    return ctx.reply(buildNoDataMessage(month, year), HTML_OPTIONS);
+  }
+
+  return ctx.reply(buildAttendanceMessage(attendance), HTML_OPTIONS);
+}
+
+function buildAttendanceMessage(attendance) {
+  return `━━━━━━━━━━━━━━━━━━━━
+
+🎓 Dear <b>${escapeHtml(attendance.studentName)}</b>,
+
+<i>"Regular attendance is the foundation of academic success.
+Every class attended is another step toward your goals."</i>
+
+━━━━━━━━━━━━━━━━━━━━
+
+<b>📅 ${escapeHtml(attendance.monthName)} ${escapeHtml(
+    attendance.year
+  )} Attendance</b>
+
+📊 <b>Percentage:</b>
+${formatPercentage(attendance.monthly.percentage)}
+
+📚 <b>Classes Conducted:</b>
+${formatCount(attendance.monthly.conducted)}
+
+✅ <b>Classes Attended:</b>
+${formatCount(attendance.monthly.attended)}
+
+❌ <b>Classes Missed:</b>
+${formatCount(attendance.monthly.missed)}
+
+━━━━━━━━━━━━━━━━━━━━
+
+<b>🏆 Overall Attendance</b>
+
+📊 <b>Percentage:</b>
+${formatPercentage(attendance.overall.percentage)}
+
+📚 <b>Classes Conducted:</b>
+${formatCount(attendance.overall.conducted)}
+
+✅ <b>Classes Attended:</b>
+${formatCount(attendance.overall.attended)}
+
+❌ <b>Classes Missed:</b>
+${formatCount(attendance.overall.missed)}
+
+━━━━━━━━━━━━━━━━━━━━
+
+Keep up the great work! 🚀`;
+}
+
+function buildNoDataMessage(month, year) {
+  return `❌ No attendance details found for <b>${escapeHtml(
+    getMonthName(month)
+  )} ${escapeHtml(year)}</b>.
+
+🔗 <b>Check Attendance Portal:</b>
+
+${PORTAL_URL}`;
+}
+
+function parseMonthSelection(messageText) {
+  const match = messageText.match(/^(0[1-9]|1[0-2])\s*,\s*(\d{4})$/);
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    month: match[1],
+    year: match[2],
+  };
+}
+
+function isValidRollNumber(rollNo) {
+  return /^[A-Z0-9]{5,20}$/.test(rollNo);
+}
+
+function isMainMenuSelection(messageText) {
+  return Object.values(MAIN_MENU_OPTIONS).includes(messageText);
+}
+
+function clearAttendanceSession(ctx) {
+  if (ctx.session?.attendance) {
+    delete ctx.session.attendance;
+  }
+}
+
+function formatPercentage(value) {
+  return value == null ? "N/A" : `${Number(value).toFixed(2)}%`;
+}
+
+function formatCount(value) {
+  return value == null ? "N/A" : String(Number(value));
+}
+
+function getMonthName(month) {
+  return MONTH_NAMES[Number(month) - 1] || month;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+module.exports = registerAttendanceHandler;

@@ -6,12 +6,15 @@ const MAIN_MENU_OPTIONS = {
   bitBank: "📝 Bit Bank",
   studyMaterials: "📖 Question Banks",
   syllabus: "📋 Syllabus",
+  timetable: "🗓️ Timetable",
+  attendance: "📊 Attendance",
 };
 
 function buildMainMenu() {
   return Markup.keyboard([
     [MAIN_MENU_OPTIONS.questionBank, MAIN_MENU_OPTIONS.bitBank],
     [MAIN_MENU_OPTIONS.studyMaterials, MAIN_MENU_OPTIONS.syllabus],
+    [MAIN_MENU_OPTIONS.timetable, MAIN_MENU_OPTIONS.attendance],
   ]).resize();
 }
 
