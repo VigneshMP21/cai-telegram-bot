@@ -24,6 +24,19 @@ const STUDENT_NAME_KEYS = [
   "fullName",
 ];
 
+const PHOTO_URL_KEYS = [
+  "photo_url",
+  "photoUrl",
+  "student_photo_url",
+  "studentPhotoUrl",
+  "profile_photo_url",
+  "profilePhotoUrl",
+  "profile_photo",
+  "profilePhoto",
+  "image_url",
+  "imageUrl",
+];
+
 const MONTHLY_SOURCE_KEYS = [
   "monthly",
   "month_attendance",
@@ -51,6 +64,8 @@ const MONTHLY_STAT_KEYS = {
     "attendance_percent",
   ],
   conducted: [
+    "month_conducted",
+    "monthly_conducted",
     "monthly_classes_conducted",
     "month_classes_conducted",
     "classes_conducted",
@@ -60,6 +75,8 @@ const MONTHLY_STAT_KEYS = {
     "working_days",
   ],
   attended: [
+    "month_attended",
+    "monthly_attended",
     "monthly_classes_attended",
     "month_classes_attended",
     "classes_attended",
@@ -68,6 +85,8 @@ const MONTHLY_STAT_KEYS = {
     "present_classes",
   ],
   missed: [
+    "month_missed",
+    "monthly_missed",
     "monthly_classes_missed",
     "month_classes_missed",
     "classes_missed",
@@ -159,6 +178,10 @@ function normalizeAttendance(payload, month, year) {
       toCleanString(pickValue(record, STUDENT_NAME_KEYS)) ||
       toCleanString(pickValue(body, STUDENT_NAME_KEYS)) ||
       "Student",
+    photoUrl:
+      toCleanString(pickValue(record, PHOTO_URL_KEYS)) ||
+      toCleanString(pickValue(body, PHOTO_URL_KEYS)) ||
+      null,
     month,
     monthName: MONTH_NAMES[Number(month) - 1] || month,
     year: String(year),

@@ -62,6 +62,15 @@ Example:
 const API_FAILURE_MESSAGE =
   "⚠️ Unable to fetch attendance details. Please try again later.";
 
+const ATTENDANCE_SEPARATOR = "\u2501".repeat(14);
+const BULLET = "\u2022";
+const EMOJIS = {
+  student: "\u{1F393}",
+  calendar: "\u{1F4C5}",
+  percentage: "\u{1F4CA}",
+  overall: "\u{1F4C8}",
+};
+
 function registerAttendanceHandler(bot) {
   bot.hears(MAIN_MENU_OPTIONS.attendance, handleAttendanceMenu);
 
@@ -177,41 +186,55 @@ async function handleMonthSelection(ctx, messageText, rollNo) {
     return ctx.reply(buildNoDataMessage(month, year), HTML_OPTIONS);
   }
 
+  return sendAttendanceReport(ctx, attendance);
+}
+
+async function sendAttendanceReport(ctx, attendance) {
+  if (attendance.photoUrl) {
+    try {
+      await ctx.replyWithPhoto(attendance.photoUrl);
+    } catch (error) {
+      logBotEvent(ctx, {
+        action: "Attendance Photo Send Failed",
+        attendancePhoto: attendance.photoUrl,
+        telegramError: error?.message || error?.description || error,
+      });
+    }
+  }
+
   return ctx.reply(buildAttendanceMessage(attendance), HTML_OPTIONS);
 }
 
 function buildAttendanceMessage(attendance) {
-  return `━━━━━━━━━━━━━━━━━━━━
+  return `${EMOJIS.student} Student Attendance Report
 
-🎓 Dear <b>${escapeHtml(attendance.studentName)}</b>,
+Dear ${escapeHtml(attendance.studentName)},
 
-<i>"Regular attendance is the foundation of academic success.
-Every class attended is another step toward your goals."</i>
+"Success begins with consistency and commitment."
 
-━━━━━━━━━━━━━━━━━━━━━━━━━
-<b>📅 ${escapeHtml(attendance.monthName)} ${escapeHtml(
-    attendance.year
-  )} Attendance</b>
+${EMOJIS.calendar} ${escapeHtml(attendance.monthName)} Attendance
 
-📊 <b>Percentage:${formatPercentage(attendance.monthly.percentage)}</b>
+${EMOJIS.percentage} Percentage : ${formatPercentage(
+    attendance.monthly.percentage
+  )}
 
-📚 <b>Classes Conducted:${formatCount(attendance.monthly.conducted)}</b>
+${BULLET} Classes Conducted : ${formatCount(attendance.monthly.conducted)}
+${BULLET} Classes Attended : ${formatCount(attendance.monthly.attended)}
+${BULLET} Classes Missed : ${formatCount(attendance.monthly.missed)}
 
-✅ <b>Classes Attended:${formatCount(attendance.monthly.attended)}</b>
+${ATTENDANCE_SEPARATOR}
 
-❌ <b>Classes Missed:${formatCount(attendance.monthly.missed)}</b>
-━━━━━━━━━━━━━━━━━━━━━━━━━
-<b>🏆 Overall Attendance</b>
+${EMOJIS.overall} Overall Attendance
 
-📊 <b>Percentage:${formatPercentage(attendance.overall.percentage)}</b>
+${BULLET} Percentage : ${formatPercentage(attendance.overall.percentage)}
 
-📚 <b>Classes Conducted:${formatCount(attendance.overall.conducted)}</b>
+${BULLET} Classes Conducted : ${formatCount(attendance.overall.conducted)}
+${BULLET} Classes Attended : ${formatCount(attendance.overall.attended)}
+${BULLET} Classes Missed : ${formatCount(attendance.overall.missed)}
 
-✅ <b>Classes Attended:${formatCount(attendance.overall.attended)}</b>
+${ATTENDANCE_SEPARATOR}
 
-❌ <b>Classes Missed:${formatCount(attendance.overall.missed)}</b>
-━━━━━━━━━━━━━━━━━━━━━━━━━
-<i>Keep up the great work! 🚀</i>`;
+Keep up the good work and stay consistent.`;
 }
 
 function buildNoDataMessage(month, year) {
