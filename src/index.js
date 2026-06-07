@@ -24,6 +24,11 @@ if (!token) {
 const app = express();
 const PORT = process.env.PORT || 3000;
 const bot = new Telegraf(token);
+const POLLING_RETRY_MS = Number(process.env.TELEGRAM_POLLING_RETRY_MS || 10000);
+
+let botStarted = false;
+let launchRetryTimer = null;
+let shuttingDown = false;
 
 bot.use(session());
 bot.use(createVersionCheckMiddleware());
@@ -48,13 +53,76 @@ bot.catch((error, ctx) => {
   });
 });
 
-bot.launch(() => {
-  console.log("Bot Started");
-});
-
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 
-process.once("SIGINT", () => bot.stop("SIGINT"));
-process.once("SIGTERM", () => bot.stop("SIGTERM"));
+startBotPolling();
+
+process.once("SIGINT", () => stopBot("SIGINT"));
+process.once("SIGTERM", () => stopBot("SIGTERM"));
+
+async function startBotPolling() {
+  if (shuttingDown || botStarted) {
+    return;
+  }
+
+  try {
+    await bot.launch();
+    botStarted = true;
+    console.log("Bot Started");
+  } catch (error) {
+    if (isPollingConflict(error)) {
+      console.error("[CAI_BOT] Telegram polling conflict, retrying", {
+        retryMs: POLLING_RETRY_MS,
+        telegramError: error?.description || error?.message || error,
+      });
+      schedulePollingRetry();
+      return;
+    }
+
+    console.error("[CAI_BOT] Bot launch failed", {
+      telegramError: error?.description || error?.message || error,
+      response: error?.response || null,
+    });
+    process.exitCode = 1;
+  }
+}
+
+function schedulePollingRetry() {
+  if (shuttingDown || launchRetryTimer) {
+    return;
+  }
+
+  launchRetryTimer = setTimeout(() => {
+    launchRetryTimer = null;
+    startBotPolling();
+  }, POLLING_RETRY_MS);
+}
+
+function isPollingConflict(error) {
+  const description = String(
+    error?.description || error?.response?.description || error?.message || ""
+  );
+
+  return (
+    error?.response?.error_code === 409 ||
+    error?.code === 409 ||
+    /409:\s*Conflict|terminated by other getUpdates/i.test(description)
+  );
+}
+
+function stopBot(signal) {
+  shuttingDown = true;
+
+  if (launchRetryTimer) {
+    clearTimeout(launchRetryTimer);
+    launchRetryTimer = null;
+  }
+
+  if (!botStarted) {
+    return;
+  }
+
+  bot.stop(signal);
+}
