@@ -168,6 +168,9 @@ async function getAttendance(rollNo, month, year) {
       params: requestParams,
     });
 
+    console.log("RESPONSE TYPE:", typeof response.data);
+    console.log("FULL RESPONSE:", response.data);
+
     rejectHtmlResponse(response.data);
 
     console.log("Attendance Response:");
@@ -554,12 +557,8 @@ function normalizeRollNumber(value) {
 }
 
 function rejectHtmlResponse(payload) {
-  if (typeof payload !== "string") {
-    return;
-  }
-
-  if (/^\s*<html[\s>]/i.test(payload)) {
-    throw new Error("Attendance API returned HTML instead of JSON.");
+  if (typeof payload === "string" && payload.includes("<html")) {
+    throw new Error("HTML response detected");
   }
 }
 
