@@ -41,32 +41,44 @@ function createVersionCheckMiddleware() {
       return next();
     }
 
-    let currentVersion = null;
+    let currentVersion = "";
+    const latestVersionValue = String(latestVersion.version || "").trim();
 
     try {
       const saveUserPayload = {
         telegramUserId: user.telegramUserId,
         username: user.username,
-        lastVersionSeen: latestVersion.version,
+        lastVersionSeen: latestVersionValue,
       };
 
       console.log(saveUserPayload);
 
       const savedUser = await saveBotUser(saveUserPayload);
-      currentVersion = savedUser.lastVersionSeen || null;
+      console.log("BOT USER RESPONSE");
+      console.log(savedUser);
+
+      currentVersion = String(savedUser.last_version_seen || "").trim();
     } catch (error) {
       logBotEvent(ctx, {
         action: "Bot User Save Failed",
         currentVersion,
-        latestVersion: latestVersion.version,
+        latestVersion: latestVersionValue,
         notificationSent: false,
         apiError: error?.message || error,
       });
       return next();
     }
 
-    if (currentVersion === latestVersion.version) {
-      logVersionCheck(ctx, currentVersion, latestVersion.version, false);
+    const notificationNeeded = currentVersion !== latestVersionValue;
+
+    console.log({
+      currentVersion,
+      latestVersion: latestVersionValue,
+      notificationNeeded,
+    });
+
+    if (!notificationNeeded) {
+      logVersionCheck(ctx, currentVersion, latestVersionValue, false);
       return next();
     }
 
@@ -74,24 +86,24 @@ function createVersionCheckMiddleware() {
       await next();
 
       try {
-        await updateUserVersion(user, latestVersion.version);
+        await updateUserVersion(user, latestVersionValue);
         logBotEvent(ctx, {
           action: "User Version Updated After Start",
           currentVersion,
-          latestVersion: latestVersion.version,
+          latestVersion: latestVersionValue,
           notificationSent: false,
         });
       } catch (error) {
         logBotEvent(ctx, {
           action: "Bot User Version Update Failed",
           currentVersion,
-          latestVersion: latestVersion.version,
+          latestVersion: latestVersionValue,
           notificationSent: false,
           apiError: error?.message || error,
         });
       }
 
-      logVersionCheck(ctx, currentVersion, latestVersion.version, false);
+      logVersionCheck(ctx, currentVersion, latestVersionValue, false);
       return;
     }
 
@@ -106,7 +118,7 @@ function createVersionCheckMiddleware() {
       logBotEvent(ctx, {
         action: "Update Notification Failed",
         currentVersion,
-        latestVersion: latestVersion.version,
+        latestVersion: latestVersionValue,
         notificationSent,
         telegramError: error?.message || error?.description || error,
       });
@@ -115,7 +127,7 @@ function createVersionCheckMiddleware() {
     logVersionCheck(
       ctx,
       currentVersion,
-      latestVersion.version,
+      latestVersionValue,
       notificationSent
     );
 

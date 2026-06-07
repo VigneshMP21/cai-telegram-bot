@@ -102,14 +102,19 @@ function normalizeVersionPayload(payload) {
 
 function normalizeUserVersionPayload(payload, user, fallbackVersion = null) {
   const body = parsePayload(payload);
+  const record = findRecordByKeys(body, LAST_VERSION_KEYS) || {};
   const lastVersionSeen =
+    toCleanString(record.last_version_seen) ||
     toCleanString(findValueByKeys(body, LAST_VERSION_KEYS)) ||
     toCleanString(fallbackVersion) ||
     null;
 
   return {
+    telegram_user_id:
+      toCleanString(record.telegram_user_id) || user.telegramUserId,
     telegramUserId: user.telegramUserId,
-    username: user.username,
+    username: toCleanString(record.username) || user.username,
+    last_version_seen: lastVersionSeen,
     lastVersionSeen,
     raw: body,
   };
@@ -260,6 +265,48 @@ function findValueByKeys(value, keys) {
     const found = findValueByKeys(body[key], keys);
 
     if (found != null && found !== "") {
+      return found;
+    }
+  }
+
+  return null;
+}
+
+function findRecordByKeys(value, keys) {
+  const body = parsePayload(value);
+
+  if (body == null) {
+    return null;
+  }
+
+  if (Array.isArray(body)) {
+    for (const item of body) {
+      const found = findRecordByKeys(item, keys);
+
+      if (found) {
+        return found;
+      }
+    }
+
+    return null;
+  }
+
+  if (!isPlainObject(body)) {
+    return null;
+  }
+
+  if (keys.some((key) => body[key] != null && body[key] !== "")) {
+    return body;
+  }
+
+  for (const key of ["data", "user", "record", "result", "response"]) {
+    if (body[key] == null) {
+      continue;
+    }
+
+    const found = findRecordByKeys(body[key], keys);
+
+    if (found) {
       return found;
     }
   }
