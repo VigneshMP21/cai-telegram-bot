@@ -18,8 +18,6 @@ const EMOJIS = {
   sparkle: "\u2728",
 };
 
-const notificationLocks = new Set();
-
 function createVersionCheckMiddleware() {
   return async (ctx, next) => {
     const user = getTelegramUser(ctx);
@@ -72,42 +70,46 @@ function createVersionCheckMiddleware() {
       return next();
     }
 
-    const lockKey = `${user.telegramUserId}:${latestVersion.version}`;
+    if (isStartCommand(ctx)) {
+      await next();
 
-    if (notificationLocks.has(lockKey)) {
-      logBotEvent(ctx, {
-        action: "Version Check",
-        currentVersion,
-        latestVersion: latestVersion.version,
-        notificationSent: false,
-        notificationSkipped: "already_in_progress",
-      });
-      return next();
+      try {
+        await updateUserVersion(user, latestVersion.version);
+        logBotEvent(ctx, {
+          action: "User Version Updated After Start",
+          currentVersion,
+          latestVersion: latestVersion.version,
+          notificationSent: false,
+        });
+      } catch (error) {
+        logBotEvent(ctx, {
+          action: "Bot User Version Update Failed",
+          currentVersion,
+          latestVersion: latestVersion.version,
+          notificationSent: false,
+          apiError: error?.message || error,
+        });
+      }
+
+      logVersionCheck(ctx, currentVersion, latestVersion.version, false);
+      return;
     }
 
-    notificationLocks.add(lockKey);
-
     let notificationSent = false;
+
+    await answerCallback(ctx);
 
     try {
       await ctx.reply(buildUpdateNotification(latestVersion));
       notificationSent = true;
-      await updateUserVersion(user, latestVersion.version);
     } catch (error) {
       logBotEvent(ctx, {
-        action: notificationSent
-          ? "Bot User Version Update Failed"
-          : "Update Notification Failed",
+        action: "Update Notification Failed",
         currentVersion,
         latestVersion: latestVersion.version,
         notificationSent,
-        apiError: notificationSent ? error?.message || error : undefined,
-        telegramError: notificationSent
-          ? undefined
-          : error?.message || error?.description || error,
+        telegramError: error?.message || error?.description || error,
       });
-    } finally {
-      notificationLocks.delete(lockKey);
     }
 
     logVersionCheck(
@@ -117,7 +119,7 @@ function createVersionCheckMiddleware() {
       notificationSent
     );
 
-    return next();
+    return;
   };
 }
 
@@ -136,6 +138,25 @@ function getTelegramUser(ctx) {
   };
 }
 
+function isStartCommand(ctx) {
+  return /^\/start(?:\s|$)/.test(ctx?.message?.text?.trim() || "");
+}
+
+async function answerCallback(ctx) {
+  if (!ctx.callbackQuery) {
+    return;
+  }
+
+  try {
+    await ctx.answerCbQuery();
+  } catch (error) {
+    logBotEvent(ctx, {
+      action: "Version Mismatch Callback Answer Failed",
+      telegramError: error?.message || error?.description || error,
+    });
+  }
+}
+
 function buildUpdateNotification(latestVersion) {
   const featureLines = getFeatureLines(latestVersion).map(formatFeatureLine);
   const featureBlock = featureLines.length
@@ -147,13 +168,18 @@ function buildUpdateNotification(latestVersion) {
     "",
     `${EMOJIS.rocket} CAI BOT UPDATED`,
     "",
-    "New Features Available",
+    "New Features Added",
     "",
     featureBlock,
     "",
-    "Stay connected and explore the latest features.",
+    "To activate and view the latest features,",
     "",
-    `Happy Learning! ${EMOJIS.graduationCap}`,
+    "please run:",
+    "",
+    "/start",
+    "",
+    "After running /start,",
+    "your menu will be refreshed automatically.",
     "",
     SEPARATOR,
   ].join("\n");
