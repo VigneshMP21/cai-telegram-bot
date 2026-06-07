@@ -190,6 +190,11 @@ async function getAttendance(rollNo, month, year) {
       return null;
     }
 
+    if (!response.data?.data) {
+      console.log("ATTENDANCE DATA MISSING:", response.data);
+      return null;
+    }
+
     payload = response.data.data;
   } catch (error) {
     console.log("Attendance Error:");
@@ -201,6 +206,7 @@ async function getAttendance(rollNo, month, year) {
 }
 
 async function getAttendanceResponse(endpoint, params) {
+  const originalUrl = buildApiUrl(endpoint, params);
   const response = await axios.get(buildApiUrl(endpoint), {
     params,
     headers: buildAttendanceHeaders(),
@@ -218,18 +224,34 @@ async function getAttendanceResponse(endpoint, params) {
     rejectHtmlResponse(response.data);
   }
 
+  console.log("ATTENDANCE RETRY URL:", originalUrl);
+
   const retryResponse = await axios.get(buildApiUrl(endpoint), {
-    params: { ...params, i: 1 },
+    params,
     headers: buildAttendanceHeaders(),
   });
 
   logAttendanceResponse(retryResponse);
 
-  if (isInfinityFreeChallenge(retryResponse.data)) {
-    rejectHtmlResponse(retryResponse.data);
+  if (!isInfinityFreeChallenge(retryResponse.data)) {
+    return retryResponse;
   }
 
-  return retryResponse;
+  const challengeRetryUrl = getChallengeRetryUrl(response.data) || originalUrl;
+
+  console.log("ATTENDANCE RETRY URL:", challengeRetryUrl);
+
+  const challengeRetryResponse = await axios.get(challengeRetryUrl, {
+    headers: buildAttendanceHeaders(),
+  });
+
+  logAttendanceResponse(challengeRetryResponse);
+
+  if (isInfinityFreeChallenge(challengeRetryResponse.data)) {
+    rejectHtmlResponse(challengeRetryResponse.data);
+  }
+
+  return challengeRetryResponse;
 }
 
 async function checkStudent(rollNo) {
@@ -614,6 +636,16 @@ function buildAttendanceHeaders() {
     ...ATTENDANCE_HEADERS,
     Cookie: attendanceInfinityFreeCookie,
   };
+}
+
+function getChallengeRetryUrl(payload) {
+  if (typeof payload !== "string") {
+    return null;
+  }
+
+  const match = payload.match(/location\.href="([^"]+)"/i);
+
+  return match ? match[1] : null;
 }
 
 function rejectHtmlResponse(payload) {
