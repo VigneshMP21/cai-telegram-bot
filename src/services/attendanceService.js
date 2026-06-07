@@ -145,6 +145,12 @@ const OVERALL_STAT_KEYS = {
 };
 async function getAttendance(rollNo, month, year) {
   const normalizedRollNo = normalizeRollNumber(rollNo);
+  const requestParams = {
+    roll_no: normalizedRollNo,
+    month,
+    year,
+  };
+  const attendanceUrl = buildApiUrl("/get_attendance.php", requestParams);
 
   console.log("ROLL NUMBER:");
   console.log(normalizedRollNo);
@@ -152,15 +158,21 @@ async function getAttendance(rollNo, month, year) {
   console.log(month);
   console.log("YEAR:");
   console.log(year);
+  console.log("Attendance URL:", attendanceUrl);
 
-  const payload = await request("/get_attendance.php", {
-    roll_no: normalizedRollNo,
-    month,
-    year,
-  });
+  let payload;
 
-  console.log("ATTENDANCE API RESPONSE:");
-  console.log(JSON.stringify(payload, null, 2));
+  try {
+    payload = await request("/get_attendance.php", requestParams);
+    console.log("Attendance Response:", payload);
+  } catch (error) {
+    console.error("Attendance Error:", {
+      message: error?.message || error,
+      status: error?.response?.status || null,
+      data: error?.response?.data || null,
+    });
+    throw error;
+  }
 
   return normalizeAttendance(payload, month, year);
 }
@@ -496,11 +508,16 @@ function normalizeRollNumber(value) {
   return String(value || "").trim().toUpperCase();
 }
 
-function buildApiUrl(endpoint) {
-  return `${API_BASE_URL.replace(/\/+$/, "")}/${endpoint.replace(
+function buildApiUrl(endpoint, params = {}) {
+  const query = new URLSearchParams(
+    Object.entries(params).filter(([, value]) => value != null && value !== "")
+  ).toString();
+  const url = `${API_BASE_URL.replace(/\/+$/, "")}/${endpoint.replace(
     /^\/+/,
     ""
   )}`;
+
+  return query ? `${url}?${query}` : url;
 }
 
 function parsePayload(payload) {
