@@ -6,8 +6,7 @@ const GET_USER_ENDPOINT = "/get_bot_user.php";
 const UPDATE_USER_VERSION_ENDPOINT = "/update_user_version.php";
 
 const VERSION_KEYS = ["version", "latest_version", "latestVersion", "bot_version"];
-const RELEASE_NOTE_KEYS = ["release_notes", "releaseNotes", "notes"];
-const FEATURE_KEYS = ["features", "release_notes", "releaseNotes"];
+const RELEASE_NOTE_KEYS = ["release_notes", "releaseNotes"];
 const LAST_VERSION_KEYS = [
   "last_version_seen",
   "lastVersionSeen",
@@ -150,7 +149,7 @@ function normalizeVersionPayload(payload) {
   return {
     version,
     releaseNotes,
-    features: normalizeFeatures(body, releaseNotes),
+    features: normalizeFeatureValue(releaseNotes),
     raw: body,
   };
 }
@@ -254,19 +253,6 @@ function logSaveBotUserRequest(url, payload) {
   console.log("[CAI_BOT] saveBotUser headers", {
     "Content-Type": "application/json",
   });
-}
-
-function normalizeFeatures(body, releaseNotes) {
-  for (const key of FEATURE_KEYS) {
-    const value = findValueByKeys(body, [key]);
-    const features = normalizeFeatureValue(value);
-
-    if (features.length) {
-      return features;
-    }
-  }
-
-  return normalizeFeatureValue(releaseNotes);
 }
 
 function normalizeFeatureValue(value) {

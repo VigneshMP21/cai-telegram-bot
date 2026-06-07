@@ -10,7 +10,9 @@ const { logBotEvent } = require("../utils/logger");
 const SEPARATOR = "\u2501".repeat(20);
 const EMOJIS = {
   rocket: "\u{1F680}",
+  sparkles: "\u2728",
 };
+const FEATURE_LINE_ICONS = ["\u{1F4C5}", "\u{1F4CA}", "\u{1F4C4}"];
 
 function createVersionCheckMiddleware() {
   return async (ctx, next) => {
@@ -329,13 +331,25 @@ async function answerCallback(ctx) {
   }
 }
 
-function buildUpdateNotification() {
+function buildUpdateNotification(latestVersion = {}) {
+  const features = normalizeNotificationFeatures(latestVersion);
+  const featureLines = features.length
+    ? [
+        `${EMOJIS.sparkles} New Features Added`,
+        "",
+        ...features.map(
+          (feature, index) =>
+            `${FEATURE_LINE_ICONS[index % FEATURE_LINE_ICONS.length]} ${feature}`
+        ),
+      ]
+    : ["New Features Added"];
+
   return [
     SEPARATOR,
     "",
     `${EMOJIS.rocket} CAI BOT UPDATED`,
     "",
-    "New Features Added",
+    ...featureLines,
     "",
     "Please run:",
     "",
@@ -345,6 +359,32 @@ function buildUpdateNotification() {
     "",
     SEPARATOR,
   ].join("\n");
+}
+
+function normalizeNotificationFeatures(latestVersion) {
+  const featureList = Array.isArray(latestVersion?.features)
+    ? cleanNotificationFeatures(latestVersion.features)
+    : [];
+
+  if (featureList.length) {
+    return featureList;
+  }
+
+  const releaseNotes = String(
+    latestVersion?.releaseNotes || latestVersion?.release_notes || ""
+  ).trim();
+
+  if (!releaseNotes) {
+    return [];
+  }
+
+  return cleanNotificationFeatures(releaseNotes.split(/\r?\n|,|;/));
+}
+
+function cleanNotificationFeatures(features) {
+  return features
+    .map((feature) => String(feature ?? "").trim())
+    .filter(Boolean);
 }
 
 function logVersionDecision(details) {

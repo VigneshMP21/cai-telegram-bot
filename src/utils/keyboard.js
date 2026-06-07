@@ -8,7 +8,7 @@ const MAIN_MENU_OPTIONS = {
   syllabus: "📋 Syllabus",
   timetable: "🗓️ Timetable",
   attendance: "📊 Attendance",
-  results: "Results",
+  results: "📢 Results",
 };
 
 function buildMainMenu() {
