@@ -8,6 +8,7 @@ const MAIN_MENU_OPTIONS = {
   syllabus: "📋 Syllabus",
   timetable: "🗓️ Timetable",
   attendance: "📊 Attendance",
+  results: "Results",
 };
 
 function buildMainMenu() {
@@ -15,6 +16,7 @@ function buildMainMenu() {
     [MAIN_MENU_OPTIONS.questionBank, MAIN_MENU_OPTIONS.bitBank],
     [MAIN_MENU_OPTIONS.studyMaterials, MAIN_MENU_OPTIONS.syllabus],
     [MAIN_MENU_OPTIONS.timetable, MAIN_MENU_OPTIONS.attendance],
+    [MAIN_MENU_OPTIONS.results],
   ]).resize();
 }
 

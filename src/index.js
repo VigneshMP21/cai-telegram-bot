@@ -13,6 +13,7 @@ const registerQuestionBankHandler = require("./handlers/questionBankHandler");
 const registerBitBankHandler = require("./handlers/bitBankHandler");
 const registerStudyMaterialHandler = require("./handlers/studyMaterialHandler");
 const registerSyllabusHandler = require("./handlers/syllabusHandler");
+const registerResultsHandler = require("./handlers/resultsHandler");
 
 const token = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
 
@@ -38,6 +39,7 @@ registerQuestionBankHandler(bot);
 registerBitBankHandler(bot);
 registerStudyMaterialHandler(bot);
 registerSyllabusHandler(bot);
+registerResultsHandler(bot);
 
 bot.catch((error, ctx) => {
   console.error("[CAI_BOT] Unhandled bot error", {
