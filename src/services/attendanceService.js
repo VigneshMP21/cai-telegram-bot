@@ -1,4 +1,5 @@
-const { API_BASE_URL, post, request } = require("./apiService");
+const axios = require("axios");
+const { API_BASE_URL, post } = require("./apiService");
 
 const MONTH_NAMES = [
   "January",
@@ -158,19 +159,26 @@ async function getAttendance(rollNo, month, year) {
   console.log(month);
   console.log("YEAR:");
   console.log(year);
-  console.log("Attendance URL:", attendanceUrl);
+  console.log("ATTENDANCE URL:", attendanceUrl);
 
   let payload;
 
   try {
-    payload = await request("/get_attendance.php", requestParams);
-    console.log("Attendance Response:", payload);
-  } catch (error) {
-    console.error("Attendance Error:", {
-      message: error?.message || error,
-      status: error?.response?.status || null,
-      data: error?.response?.data || null,
+    const response = await axios.get(buildApiUrl("/get_attendance.php"), {
+      params: requestParams,
     });
+
+    console.log("ATTENDANCE RESPONSE:");
+    console.log(JSON.stringify(response.data, null, 2));
+
+    if (response.data?.status !== true) {
+      return null;
+    }
+
+    payload = response.data.data;
+  } catch (error) {
+    console.log("ATTENDANCE ERROR:");
+    console.log(error.response?.data);
     throw error;
   }
 
