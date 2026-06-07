@@ -68,16 +68,32 @@ async function updateUserVersion(user, latestVersion) {
   }
 
   const normalizedUser = normalizeUser(user);
-  const payload = assertSuccessfulPayload(
-    await post(UPDATE_USER_VERSION_ENDPOINT, {
-      ...buildUserPayload(normalizedUser),
-      version,
-      latest_version: version,
-      last_version_seen: version,
-      current_version: version,
-    }),
-    "update bot user version"
-  );
+  const requestPayload = {
+    ...buildUserPayload(normalizedUser),
+    version,
+    latest_version: version,
+    last_version_seen: version,
+    current_version: version,
+  };
+  const requestUrl = buildApiUrl(UPDATE_USER_VERSION_ENDPOINT);
+
+  console.log("[CAI_BOT] updateUserVersion URL", requestUrl);
+  console.log("[CAI_BOT] updateUserVersion payload", requestPayload);
+
+  let responseBody;
+
+  try {
+    responseBody = await post(UPDATE_USER_VERSION_ENDPOINT, requestPayload);
+    console.log("[CAI_BOT] updateUserVersion response body", responseBody);
+  } catch (error) {
+    console.error("[CAI_BOT] updateUserVersion error.response.data", {
+      status: error?.response?.status || null,
+      data: error?.response?.data || null,
+    });
+    throw error;
+  }
+
+  const payload = assertSuccessfulPayload(responseBody, "update bot user version");
 
   return normalizeUserVersionPayload(payload, normalizedUser, version);
 }

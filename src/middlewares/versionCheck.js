@@ -124,7 +124,7 @@ function createVersionCheckMiddleware() {
         currentVersion,
         latestVersion: latestVersionValue,
         menuRefreshed,
-        notificationNeeded: false,
+        notificationNeeded: !versionActivated,
         versionActivated,
       });
       return;
@@ -230,12 +230,55 @@ function clearMenuRefresh(ctx, latestVersion) {
 }
 
 async function markVersionCompleted(ctx, user, currentVersion, latestVersion) {
+  console.log("UPDATING VERSION", {
+    telegramUserId: user.telegramUserId,
+    latestVersion,
+  });
+
   try {
-    await updateUserVersion(user, latestVersion);
+    const updateResponse = await updateUserVersion(user, latestVersion);
+    console.log("VERSION UPDATE RESPONSE");
+    console.log(updateResponse);
+    console.log("VERSION UPDATED SUCCESSFULLY");
+
+    const refreshedUser = await saveBotUser({
+      telegramUserId: user.telegramUserId,
+      username: user.username,
+    });
+    console.log("REFRESHED BOT USER RESPONSE");
+    console.log(refreshedUser);
+
+    const refreshedVersion = String(
+      refreshedUser.last_version_seen || ""
+    ).trim();
+    const versionActivated = refreshedVersion === latestVersion;
+
+    console.log({
+      currentVersion: refreshedVersion,
+      latestVersion,
+      notificationNeeded: refreshedVersion !== latestVersion,
+      versionActivated,
+    });
+
+    if (!versionActivated) {
+      logBotEvent(ctx, {
+        action: "Bot User Version Verification Failed",
+        currentVersion: refreshedVersion,
+        previousVersion: currentVersion,
+        latestVersion,
+        menuRefreshed: true,
+        notificationNeeded: true,
+        versionActivated: false,
+        notificationSent: false,
+      });
+      return false;
+    }
+
     clearMenuRefresh(ctx, latestVersion);
     logBotEvent(ctx, {
       action: "User Version Updated After Feature Access",
-      currentVersion,
+      currentVersion: refreshedVersion,
+      previousVersion: currentVersion,
       latestVersion,
       menuRefreshed: true,
       notificationNeeded: false,
@@ -249,7 +292,7 @@ async function markVersionCompleted(ctx, user, currentVersion, latestVersion) {
       currentVersion,
       latestVersion,
       menuRefreshed: true,
-      notificationNeeded: false,
+      notificationNeeded: true,
       versionActivated: false,
       notificationSent: false,
       apiError: error?.message || error,
