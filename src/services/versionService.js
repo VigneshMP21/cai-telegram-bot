@@ -69,16 +69,15 @@ async function updateUserVersion(user, latestVersion) {
 
   const normalizedUser = normalizeUser(user);
   const requestPayload = {
-    ...buildUserPayload(normalizedUser),
+    telegram_user_id: normalizedUser.telegramUserId,
     version,
-    latest_version: version,
-    last_version_seen: version,
-    current_version: version,
   };
   const requestUrl = buildApiUrl(UPDATE_USER_VERSION_ENDPOINT);
+  const requestBody = JSON.stringify(requestPayload);
 
   console.log("[CAI_BOT] updateUserVersion URL", requestUrl);
   console.log("[CAI_BOT] updateUserVersion payload", requestPayload);
+  console.log("[CAI_BOT] updateUserVersion request body", requestBody);
 
   let responseBody;
 

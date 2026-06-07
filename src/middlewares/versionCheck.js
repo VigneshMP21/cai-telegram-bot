@@ -230,10 +230,12 @@ function clearMenuRefresh(ctx, latestVersion) {
 }
 
 async function markVersionCompleted(ctx, user, currentVersion, latestVersion) {
-  console.log("UPDATING VERSION", {
-    telegramUserId: user.telegramUserId,
-    latestVersion,
-  });
+  const updatePayload = {
+    telegram_user_id: String(user.telegramUserId),
+    version: latestVersion,
+  };
+
+  console.log("UPDATING VERSION", updatePayload);
 
   try {
     const updateResponse = await updateUserVersion(user, latestVersion);
