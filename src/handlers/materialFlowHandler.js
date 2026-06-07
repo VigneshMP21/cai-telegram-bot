@@ -17,9 +17,58 @@ const {
 const { decodeSubject, resolveSubjectReference } = require("../utils/callbackData");
 const { logBotEvent } = require("../utils/logger");
 
-const API_FAILURE_MESSAGE = "⚠️ Unable to connect to server.";
-const NO_RECORDS_MESSAGE = "❌ No records found.";
-const FILE_MISSING_MESSAGE = "❌ File not available.";
+const MESSAGE_OPTIONS = {
+  parse_mode: "HTML",
+  disable_web_page_preview: true,
+};
+const FLOW_COPY = {
+  question_bank: {
+    intro:
+      "Access question bank PDFs with answers, arranged semester-wise and subject-wise for focused preparation.",
+    semesterAction: "Choose your semester to view available question banks.",
+    subjectAction: "Select a subject to download the question bank with answers.",
+    readyText: "Your question bank with answers is ready for download.",
+  },
+  bit_bank: {
+    intro:
+      "Find compact bit-bank materials designed for quick revision before internal and semester exams.",
+    semesterAction: "Choose your semester to view available bit-bank resources.",
+    subjectAction: "Select a subject to download the bit-bank PDF.",
+    readyText: "Your bit-bank PDF is ready for quick revision.",
+  },
+  study_materials: {
+    intro:
+      "Browse curated question bank resources to strengthen concepts and practice important questions.",
+    semesterAction: "Choose your semester to view available question bank resources.",
+    subjectAction: "Select a subject to download the question bank PDF.",
+    readyText: "Your question bank PDF is ready for download.",
+  },
+  syllabus: {
+    intro:
+      "View the official syllabus and course structure for each subject in one place.",
+    semesterAction: "Choose your semester to view available syllabus files.",
+    subjectAction: "Select a subject to download the syllabus PDF.",
+    readyText: "Your syllabus PDF is ready for reference.",
+  },
+};
+const API_FAILURE_MESSAGE = `━━━━━━━━━━━━━━━
+⚠️ <b>SERVER UNAVAILABLE</b>
+
+Unable to connect to the student portal right now.
+Please try again after a few minutes.
+━━━━━━━━━━━━━━━`;
+const NO_RECORDS_MESSAGE = `━━━━━━━━━━━━━━━
+❌ <b>NO RECORDS FOUND</b>
+
+No resources are available for this selection yet.
+Please check again later.
+━━━━━━━━━━━━━━━`;
+const FILE_MISSING_MESSAGE = `━━━━━━━━━━━━━━━
+❌ <b>FILE NOT AVAILABLE</b>
+
+The selected PDF is currently unavailable.
+Please try another subject or check again later.
+━━━━━━━━━━━━━━━`;
 const DOWNLOAD_HEADERS = {
   Accept: "application/pdf, application/octet-stream, text/html, */*",
   "User-Agent":
@@ -74,16 +123,16 @@ async function handleMenuSelection(ctx, config) {
     semesters = await getSemesters(config.type);
   } catch (error) {
     logApiError(ctx, "getSemesters", config, error);
-    return ctx.reply(API_FAILURE_MESSAGE);
+    return ctx.reply(API_FAILURE_MESSAGE, MESSAGE_OPTIONS);
   }
 
   if (!semesters.length) {
-    return ctx.reply(NO_RECORDS_MESSAGE);
+    return ctx.reply(NO_RECORDS_MESSAGE, MESSAGE_OPTIONS);
   }
 
   return ctx.reply(
-    `${config.title}\n\nSelect semester:`,
-    buildSemesterKeyboard(config.prefix, semesters)
+    buildSemesterPrompt(config),
+    withMessageOptions(buildSemesterKeyboard(config.prefix, semesters))
   );
 }
 
@@ -102,16 +151,16 @@ async function handleSemesterSelection(ctx, config, semester) {
     subjects = await getSubjects(config.type, semester);
   } catch (error) {
     logApiError(ctx, "getSubjects", config, error);
-    return ctx.reply(API_FAILURE_MESSAGE);
+    return ctx.reply(API_FAILURE_MESSAGE, MESSAGE_OPTIONS);
   }
 
   if (!subjects.length) {
-    return ctx.reply(NO_RECORDS_MESSAGE);
+    return ctx.reply(NO_RECORDS_MESSAGE, MESSAGE_OPTIONS);
   }
 
   return ctx.reply(
-    `${config.title}\n\n🎓 Semester: ${semester}\n\nSelect subject:`,
-    buildSubjectKeyboard(config.prefix, semester, subjects)
+    buildSubjectPrompt(config, semester),
+    withMessageOptions(buildSubjectKeyboard(config.prefix, semester, subjects))
   );
 }
 
@@ -119,7 +168,7 @@ async function handleSubjectSelection(ctx, config, semester, subject) {
   await answerCallback(ctx);
 
   if (!subject) {
-    return ctx.reply(NO_RECORDS_MESSAGE);
+    return ctx.reply(NO_RECORDS_MESSAGE, MESSAGE_OPTIONS);
   }
 
   logBotEvent(ctx, {
@@ -135,7 +184,7 @@ async function handleSubjectSelection(ctx, config, semester, subject) {
     material = await getMaterial(config.type, semester, subject);
   } catch (error) {
     logApiError(ctx, "getMaterial", config, error);
-    return ctx.reply(API_FAILURE_MESSAGE);
+    return ctx.reply(API_FAILURE_MESSAGE, MESSAGE_OPTIONS);
   }
 
   console.log("Material Object:");
@@ -145,10 +194,10 @@ async function handleSubjectSelection(ctx, config, semester, subject) {
   console.log(material?.file_url);
 
   if (!material?.file_url) {
-    return ctx.reply(FILE_MISSING_MESSAGE);
+    return ctx.reply(FILE_MISSING_MESSAGE, MESSAGE_OPTIONS);
   }
 
-  const caption = `${config.title}\n\n📖 Subject:\n${subject}\n\n🎓 Semester:\n${semester}`;
+  const caption = buildDocumentCaption(config, semester, subject);
 
   let fileResponse;
 
@@ -162,7 +211,7 @@ async function handleSubjectSelection(ctx, config, semester, subject) {
     console.error(error?.response);
     console.error(error?.response?.status);
     console.error(error?.response?.headers);
-    return ctx.reply(FILE_MISSING_MESSAGE);
+    return ctx.reply(FILE_MISSING_MESSAGE, MESSAGE_OPTIONS);
   }
 
   try {
@@ -175,6 +224,7 @@ async function handleSubjectSelection(ctx, config, semester, subject) {
       },
       {
         caption,
+        parse_mode: "HTML",
       }
     );
   } catch (error) {
@@ -190,7 +240,7 @@ async function handleSubjectSelection(ctx, config, semester, subject) {
       telegramResponse: error?.response,
       telegramDescription: error?.description,
     });
-    return ctx.reply(FILE_MISSING_MESSAGE);
+    return ctx.reply(FILE_MISSING_MESSAGE, MESSAGE_OPTIONS);
   }
 
   logBotEvent(ctx, {
@@ -204,7 +254,7 @@ async function handleSubjectSelection(ctx, config, semester, subject) {
 
 async function replyFromCallback(ctx, message) {
   await answerCallback(ctx);
-  return ctx.reply(message);
+  return ctx.reply(message, MESSAGE_OPTIONS);
 }
 
 async function answerCallback(ctx) {
@@ -227,6 +277,69 @@ function logApiError(ctx, action, config, error) {
     materialType: config.type,
     apiError: error?.message || error,
   });
+}
+
+function buildSemesterPrompt(config) {
+  const copy = getFlowCopy(config);
+
+  return `━━━━━━━━━━━━━━━
+<b>${escapeHtml(config.title)}</b>
+
+${escapeHtml(copy.intro)}
+
+🎓 <b>Select Semester</b>
+${escapeHtml(copy.semesterAction)}
+━━━━━━━━━━━━━━━`;
+}
+
+function buildSubjectPrompt(config, semester) {
+  const copy = getFlowCopy(config);
+
+  return `━━━━━━━━━━━━━━━
+<b>${escapeHtml(config.title)}</b>
+
+🎓 <b>Semester:</b> ${escapeHtml(semester)}
+
+📚 <b>Select Subject</b>
+${escapeHtml(copy.subjectAction)}
+━━━━━━━━━━━━━━━`;
+}
+
+function buildDocumentCaption(config, semester, subject) {
+  const copy = getFlowCopy(config);
+
+  return `<b>${escapeHtml(config.title)}</b>
+━━━━━━━━━━━━━━━
+
+🎓 <b>Semester:</b> ${escapeHtml(semester)}
+
+📖 <b>Subject:</b>
+${escapeHtml(subject)}
+
+${escapeHtml(copy.readyText)}`;
+}
+
+function getFlowCopy(config) {
+  return FLOW_COPY[config.type] || {
+    intro: "Access student resources arranged semester-wise and subject-wise.",
+    semesterAction: "Choose your semester to view available resources.",
+    subjectAction: "Select a subject to download the PDF.",
+    readyText: "Your PDF is ready for download.",
+  };
+}
+
+function withMessageOptions(extra) {
+  return {
+    ...MESSAGE_OPTIONS,
+    ...extra,
+  };
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 async function downloadFileStream(fileUrl) {
