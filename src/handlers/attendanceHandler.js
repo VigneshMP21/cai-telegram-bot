@@ -2,7 +2,6 @@ const { getAttendance } = require("../services/attendanceService");
 const { MAIN_MENU_OPTIONS } = require("../utils/keyboard");
 const { logBotEvent } = require("../utils/logger");
 
-const PORTAL_URL = "https://sietkcai.infinityfreeapp.com/monthly_attendance.php";
 const HTML_OPTIONS = {
   parse_mode: "HTML",
   disable_web_page_preview: true,
@@ -47,7 +46,10 @@ Examples:
 
 const INVALID_ROLL_NUMBER_MESSAGE = `❌ Invalid Roll Number.
 
-Please enter a valid roll number.`;
+Roll number must be exactly 10 characters.
+
+Example:
+<code>23F61Axxxx</code>`;
 
 const INVALID_MONTH_MESSAGE = `❌ Invalid format.
 
@@ -126,7 +128,7 @@ async function handleRollNumber(ctx, messageText) {
       action: "Invalid Roll Number",
       rollNumber: messageText,
     });
-    return ctx.reply(INVALID_ROLL_NUMBER_MESSAGE);
+    return ctx.reply(INVALID_ROLL_NUMBER_MESSAGE, HTML_OPTIONS);
   }
 
   ctx.session.attendance = {
@@ -183,7 +185,7 @@ async function handleMonthSelection(ctx, messageText, rollNo) {
   clearAttendanceSession(ctx);
 
   if (!attendance) {
-    return ctx.reply(buildNoDataMessage(month, year), HTML_OPTIONS);
+    return ctx.reply(buildNoDataMessage(rollNo, month, year), HTML_OPTIONS);
   }
 
   return sendAttendanceReport(ctx, attendance);
@@ -237,14 +239,16 @@ ${ATTENDANCE_SEPARATOR}
 Keep up the good work and stay consistent.`;
 }
 
-function buildNoDataMessage(month, year) {
-  return `❌ No attendance details found for <b>${escapeHtml(
-    getMonthName(month)
-  )} ${escapeHtml(year)}</b>.
+function buildNoDataMessage(rollNo, month, year) {
+  return `❌ Roll Number Not Matched
 
-🔗 <b>Check Attendance Portal:</b>
+No attendance details found for:
+<b>${escapeHtml(rollNo)}</b>
 
-${PORTAL_URL}`;
+Month:
+<b>${escapeHtml(getMonthName(month))} ${escapeHtml(year)}</b>
+
+Please check your roll number and try again.`;
 }
 
 function parseMonthSelection(messageText) {
@@ -261,7 +265,7 @@ function parseMonthSelection(messageText) {
 }
 
 function isValidRollNumber(rollNo) {
-  return /^[A-Z0-9]{5,20}$/.test(rollNo);
+  return /^[A-Z0-9]{10}$/.test(rollNo);
 }
 
 function isMainMenuSelection(messageText) {
