@@ -46,7 +46,15 @@ function createVersionCheckMiddleware() {
     let currentVersion = null;
 
     try {
-      const savedUser = await saveBotUser(user);
+      const saveUserPayload = {
+        telegramUserId: user.telegramUserId,
+        username: user.username,
+        lastVersionSeen: latestVersion.version,
+      };
+
+      console.log(saveUserPayload);
+
+      const savedUser = await saveBotUser(saveUserPayload);
       currentVersion = savedUser.lastVersionSeen || null;
     } catch (error) {
       logBotEvent(ctx, {
