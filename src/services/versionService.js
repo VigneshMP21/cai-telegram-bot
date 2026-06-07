@@ -1,4 +1,4 @@
-const { post, request } = require("./apiService");
+const { API_BASE_URL, post, postJson, request } = require("./apiService");
 
 const VERSION_ENDPOINT = "/get_bot_version.php";
 const SAVE_USER_ENDPOINT = "/save_bot_user.php";
@@ -37,10 +37,25 @@ async function getLatestVersion() {
 
 async function saveBotUser(user) {
   const normalizedUser = normalizeUser(user);
-  const payload = assertSuccessfulPayload(
-    await post(SAVE_USER_ENDPOINT, buildUserPayload(normalizedUser)),
-    "save bot user"
-  );
+  const requestPayload = buildSaveBotUserPayload(normalizedUser);
+  const requestUrl = buildApiUrl(SAVE_USER_ENDPOINT);
+
+  logSaveBotUserRequest(requestUrl, requestPayload);
+
+  let responseBody;
+
+  try {
+    responseBody = await postJson(SAVE_USER_ENDPOINT, requestPayload);
+    console.log("[CAI_BOT] saveBotUser response body", responseBody);
+  } catch (error) {
+    console.error("[CAI_BOT] saveBotUser error.response.data", {
+      status: error?.response?.status || null,
+      data: error?.response?.data || null,
+    });
+    throw error;
+  }
+
+  const payload = assertSuccessfulPayload(responseBody, "save bot user");
 
   return normalizeUserVersionPayload(payload, normalizedUser);
 }
@@ -131,6 +146,8 @@ function normalizeUser(user) {
     username: toCleanString(user?.username) || null,
     firstName: toCleanString(user?.firstName || user?.first_name) || null,
     lastName: toCleanString(user?.lastName || user?.last_name) || null,
+    lastVersionSeen:
+      toCleanString(user?.lastVersionSeen || user?.last_version_seen) || null,
   };
 }
 
@@ -143,6 +160,29 @@ function buildUserPayload(user) {
     username: user.username,
     first_name: user.firstName,
     last_name: user.lastName,
+  });
+}
+
+function buildSaveBotUserPayload(user) {
+  return {
+    telegram_user_id: user.telegramUserId,
+    username: user.username,
+    last_version_seen: user.lastVersionSeen || null,
+  };
+}
+
+function buildApiUrl(endpoint) {
+  return `${API_BASE_URL.replace(/\/+$/, "")}/${endpoint.replace(/^\/+/, "")}`;
+}
+
+function logSaveBotUserRequest(url, payload) {
+  const requestBody = JSON.stringify(payload);
+
+  console.log("[CAI_BOT] saveBotUser URL", url);
+  console.log("[CAI_BOT] saveBotUser payload", payload);
+  console.log("[CAI_BOT] saveBotUser request body", requestBody);
+  console.log("[CAI_BOT] saveBotUser headers", {
+    "Content-Type": "application/json",
   });
 }
 

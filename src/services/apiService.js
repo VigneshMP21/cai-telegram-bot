@@ -141,6 +141,43 @@ async function post(endpoint, data) {
   return retryPayload;
 }
 
+async function postJson(endpoint, data) {
+  const body = JSON.stringify(data);
+  const headers = buildRequestHeaders({
+    "Content-Type": "application/json",
+  });
+  const response = await postWithNetworkRetry(endpoint, body, {
+    headers,
+    validateStatus: (status) => status < 400,
+  });
+  const payload = parsePayload(response.data);
+
+  if (!isInfinityFreeChallenge(payload)) {
+    return payload;
+  }
+
+  infinityFreeCookie = solveInfinityFreeChallenge(payload);
+
+  if (!infinityFreeCookie) {
+    throw new Error("Unable to solve InfinityFree API challenge.");
+  }
+
+  const retryResponse = await postWithNetworkRetry(endpoint, body, {
+    params: { i: 1 },
+    headers: buildRequestHeaders({
+      "Content-Type": "application/json",
+    }),
+    validateStatus: (status) => status < 400,
+  });
+  const retryPayload = parsePayload(retryResponse.data);
+
+  if (isInfinityFreeChallenge(retryPayload)) {
+    throw new Error("InfinityFree API challenge retry failed.");
+  }
+
+  return retryPayload;
+}
+
 async function getWithNetworkRetry(endpoint, options) {
   try {
     return await apiClient.get(endpoint, options);
@@ -405,6 +442,7 @@ module.exports = {
   API_BASE_URL,
   request,
   post,
+  postJson,
   getSemesters,
   getSubjects,
   getMaterial,
