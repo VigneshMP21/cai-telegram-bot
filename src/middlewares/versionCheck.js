@@ -49,7 +49,7 @@ function createVersionCheckMiddleware() {
       console.log("BOT USER RESPONSE");
       console.log(savedUser);
 
-      currentVersion = String(savedUser.last_version_seen || "").trim();
+      currentVersion = String(savedUser.lastVersionSeen || "").trim();
     } catch (error) {
       logBotEvent(ctx, {
         action: "Bot User Save Failed",
@@ -250,9 +250,7 @@ async function markVersionCompleted(ctx, user, currentVersion, latestVersion) {
     console.log("REFRESHED BOT USER RESPONSE");
     console.log(refreshedUser);
 
-    const refreshedVersion = String(
-      refreshedUser.last_version_seen || ""
-    ).trim();
+    const refreshedVersion = String(refreshedUser.lastVersionSeen || "").trim();
     const versionActivated = refreshedVersion === latestVersion;
 
     console.log({

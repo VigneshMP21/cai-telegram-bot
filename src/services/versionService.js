@@ -47,7 +47,7 @@ async function saveBotUser(user) {
   try {
     responseBody = await postJson(SAVE_USER_ENDPOINT, requestPayload);
     console.log("RAW API RESPONSE");
-    console.log(responseBody);
+    console.log(JSON.stringify(responseBody, null, 2));
     console.log("[CAI_BOT] saveBotUser response body", responseBody);
   } catch (error) {
     console.error("[CAI_BOT] saveBotUser error.response.data", {
@@ -65,7 +65,7 @@ async function saveBotUser(user) {
   console.log({
     rawResponse: payload,
     mappedUser,
-    currentVersion: String(mappedUser.last_version_seen || "").trim(),
+    currentVersion: String(mappedUser.lastVersionSeen || "").trim(),
   });
 
   return mappedUser;
@@ -128,25 +128,33 @@ function normalizeVersionPayload(payload) {
 
 function normalizeUserVersionPayload(payload, user, fallbackVersion = null) {
   const body = parsePayload(payload);
-  const record = findRecordByKeys(body, LAST_VERSION_KEYS) || {};
+  const apiUser = getApiUser(body);
   const lastVersionSeen =
-    toCleanString(body?.data?.last_version_seen) ||
-    toCleanString(body?.data?.user?.last_version_seen) ||
-    toCleanString(body?.user?.last_version_seen) ||
-    toCleanString(record.last_version_seen) ||
-    toCleanString(findValueByKeys(body, LAST_VERSION_KEYS)) ||
+    toCleanString(apiUser.last_version_seen) ||
     toCleanString(fallbackVersion) ||
     null;
 
   return {
-    telegram_user_id:
-      toCleanString(record.telegram_user_id) || user.telegramUserId,
-    telegramUserId: user.telegramUserId,
-    username: toCleanString(record.username) || user.username,
-    last_version_seen: lastVersionSeen,
+    telegramUserId: toCleanString(apiUser.telegram_user_id) || user.telegramUserId,
+    username: toCleanString(apiUser.username) || user.username,
     lastVersionSeen,
-    raw: body,
   };
+}
+
+function getApiUser(body) {
+  if (isPlainObject(body?.data)) {
+    return body.data;
+  }
+
+  if (isPlainObject(body?.user)) {
+    return body.user;
+  }
+
+  if (isPlainObject(body)) {
+    return body;
+  }
+
+  return {};
 }
 
 function assertSuccessfulPayload(payload, operation) {
