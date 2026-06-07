@@ -1,5 +1,17 @@
 const axios = require("axios");
 const { API_BASE_URL, post } = require("./apiService");
+const {
+  isInfinityFreeChallenge,
+  solveInfinityFreeChallenge,
+} = require("../utils/infinityFree");
+
+const ATTENDANCE_HEADERS = {
+  Accept: "application/json, text/plain, */*",
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+};
+
+let attendanceInfinityFreeCookie = null;
 
 const MONTH_NAMES = [
   "January",
@@ -164,14 +176,10 @@ async function getAttendance(rollNo, month, year) {
   let payload;
 
   try {
-    const response = await axios.get(buildApiUrl("/get_attendance_bot.php"), {
-      params: requestParams,
-    });
-
-    console.log("RESPONSE HEADERS:");
-    console.log(response.headers);
-    console.log("RESPONSE TYPE:", typeof response.data);
-    console.log("FULL RESPONSE:", response.data);
+    const response = await getAttendanceResponse(
+      "/get_attendance_bot.php",
+      requestParams
+    );
 
     rejectHtmlResponse(response.data);
 
@@ -190,6 +198,38 @@ async function getAttendance(rollNo, month, year) {
   }
 
   return normalizeAttendance(payload, month, year);
+}
+
+async function getAttendanceResponse(endpoint, params) {
+  const response = await axios.get(buildApiUrl(endpoint), {
+    params,
+    headers: buildAttendanceHeaders(),
+  });
+
+  logAttendanceResponse(response);
+
+  if (!isInfinityFreeChallenge(response.data)) {
+    return response;
+  }
+
+  attendanceInfinityFreeCookie = solveInfinityFreeChallenge(response.data);
+
+  if (!attendanceInfinityFreeCookie) {
+    rejectHtmlResponse(response.data);
+  }
+
+  const retryResponse = await axios.get(buildApiUrl(endpoint), {
+    params: { ...params, i: 1 },
+    headers: buildAttendanceHeaders(),
+  });
+
+  logAttendanceResponse(retryResponse);
+
+  if (isInfinityFreeChallenge(retryResponse.data)) {
+    rejectHtmlResponse(retryResponse.data);
+  }
+
+  return retryResponse;
 }
 
 async function checkStudent(rollNo) {
@@ -556,6 +596,24 @@ function toCleanString(value) {
 
 function normalizeRollNumber(value) {
   return String(value || "").trim().toUpperCase();
+}
+
+function logAttendanceResponse(response) {
+  console.log("RESPONSE HEADERS:");
+  console.log(response.headers);
+  console.log("RESPONSE TYPE:", typeof response.data);
+  console.log("FULL RESPONSE:", response.data);
+}
+
+function buildAttendanceHeaders() {
+  if (!attendanceInfinityFreeCookie) {
+    return ATTENDANCE_HEADERS;
+  }
+
+  return {
+    ...ATTENDANCE_HEADERS,
+    Cookie: attendanceInfinityFreeCookie,
+  };
 }
 
 function rejectHtmlResponse(payload) {
