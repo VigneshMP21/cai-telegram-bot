@@ -172,7 +172,6 @@ function buildSaveBotUserPayload(user) {
   return {
     telegram_user_id: user.telegramUserId,
     username: user.username,
-    last_version_seen: user.lastVersionSeen || null,
   };
 }
 

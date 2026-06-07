@@ -3,19 +3,12 @@ const {
   saveBotUser,
   updateUserVersion,
 } = require("../services/versionService");
+const { MAIN_MENU_OPTIONS } = require("../utils/keyboard");
 const { logBotEvent } = require("../utils/logger");
 
 const SEPARATOR = "\u2501".repeat(20);
 const EMOJIS = {
   rocket: "\u{1F680}",
-  calendar: "\u{1F5D3}\uFE0F",
-  chart: "\u{1F4CA}",
-  book: "\u{1F4DA}",
-  memo: "\u{1F4DD}",
-  openBook: "\u{1F4D6}",
-  clipboard: "\u{1F4CB}",
-  graduationCap: "\u{1F393}",
-  sparkle: "\u2728",
 };
 
 function createVersionCheckMiddleware() {
@@ -48,7 +41,6 @@ function createVersionCheckMiddleware() {
       const saveUserPayload = {
         telegramUserId: user.telegramUserId,
         username: user.username,
-        lastVersionSeen: latestVersionValue,
       };
 
       console.log(saveUserPayload);
@@ -69,42 +61,82 @@ function createVersionCheckMiddleware() {
       return next();
     }
 
-    const notificationNeeded = currentVersion !== latestVersionValue;
+    const versionMismatch = currentVersion !== latestVersionValue;
+    const menuRefreshed = hasRefreshedMenu(ctx, latestVersionValue);
+    let versionActivated = false;
+    let notificationNeeded = versionMismatch && !menuRefreshed;
 
-    console.log({
+    logVersionDecision({
       currentVersion,
       latestVersion: latestVersionValue,
+      menuRefreshed,
       notificationNeeded,
+      versionActivated,
     });
 
-    if (!notificationNeeded) {
-      logVersionCheck(ctx, currentVersion, latestVersionValue, false);
+    if (!versionMismatch) {
+      clearMenuRefresh(ctx, latestVersionValue);
+      logVersionCheck(ctx, currentVersion, latestVersionValue, false, {
+        menuRefreshed,
+        notificationNeeded,
+        versionActivated,
+      });
       return next();
     }
 
     if (isStartCommand(ctx)) {
       await next();
-
-      try {
-        await updateUserVersion(user, latestVersionValue);
-        logBotEvent(ctx, {
-          action: "User Version Updated After Start",
-          currentVersion,
-          latestVersion: latestVersionValue,
-          notificationSent: false,
-        });
-      } catch (error) {
-        logBotEvent(ctx, {
-          action: "Bot User Version Update Failed",
-          currentVersion,
-          latestVersion: latestVersionValue,
-          notificationSent: false,
-          apiError: error?.message || error,
-        });
-      }
-
-      logVersionCheck(ctx, currentVersion, latestVersionValue, false);
+      markMenuRefreshed(ctx, latestVersionValue);
+      notificationNeeded = false;
+      logBotEvent(ctx, {
+        action: "Menu Refreshed For Version",
+        currentVersion,
+        latestVersion: latestVersionValue,
+        menuRefreshed: true,
+        notificationNeeded,
+        versionActivated,
+        notificationSent: false,
+      });
+      logVersionDecision({
+        currentVersion,
+        latestVersion: latestVersionValue,
+        menuRefreshed: true,
+        notificationNeeded,
+        versionActivated,
+      });
+      logVersionCheck(ctx, currentVersion, latestVersionValue, false, {
+        menuRefreshed: true,
+        notificationNeeded,
+        versionActivated,
+      });
       return;
+    }
+
+    if (menuRefreshed && isFeatureInteraction(ctx)) {
+      await next();
+      versionActivated = await markVersionCompleted(
+        ctx,
+        user,
+        currentVersion,
+        latestVersionValue
+      );
+      logVersionDecision({
+        currentVersion,
+        latestVersion: latestVersionValue,
+        menuRefreshed,
+        notificationNeeded: false,
+        versionActivated,
+      });
+      return;
+    }
+
+    if (menuRefreshed) {
+      logVersionCheck(ctx, currentVersion, latestVersionValue, false, {
+        menuRefreshed,
+        notificationNeeded,
+        versionActivated,
+      });
+      return next();
     }
 
     let notificationSent = false;
@@ -119,6 +151,9 @@ function createVersionCheckMiddleware() {
         action: "Update Notification Failed",
         currentVersion,
         latestVersion: latestVersionValue,
+        menuRefreshed,
+        notificationNeeded,
+        versionActivated,
         notificationSent,
         telegramError: error?.message || error?.description || error,
       });
@@ -128,7 +163,12 @@ function createVersionCheckMiddleware() {
       ctx,
       currentVersion,
       latestVersionValue,
-      notificationSent
+      notificationSent,
+      {
+        menuRefreshed,
+        notificationNeeded,
+        versionActivated,
+      }
     );
 
     return;
@@ -154,6 +194,70 @@ function isStartCommand(ctx) {
   return /^\/start(?:\s|$)/.test(ctx?.message?.text?.trim() || "");
 }
 
+function isFeatureInteraction(ctx) {
+  const messageText = ctx?.message?.text?.trim();
+
+  if (messageText && Object.values(MAIN_MENU_OPTIONS).includes(messageText)) {
+    return true;
+  }
+
+  return Boolean(ctx?.callbackQuery?.data);
+}
+
+function markMenuRefreshed(ctx, latestVersion) {
+  if (!ctx.session) {
+    ctx.session = {};
+  }
+
+  ctx.session.menuRefreshed = true;
+  ctx.session.menuRefreshedVersion = latestVersion;
+  ctx.session.menuRefreshedAt = new Date().toISOString();
+}
+
+function hasRefreshedMenu(ctx, latestVersion) {
+  return (
+    ctx.session?.menuRefreshed === true &&
+    ctx.session?.menuRefreshedVersion === latestVersion
+  );
+}
+
+function clearMenuRefresh(ctx, latestVersion) {
+  if (ctx.session?.menuRefreshedVersion === latestVersion) {
+    delete ctx.session.menuRefreshed;
+    delete ctx.session.menuRefreshedVersion;
+    delete ctx.session.menuRefreshedAt;
+  }
+}
+
+async function markVersionCompleted(ctx, user, currentVersion, latestVersion) {
+  try {
+    await updateUserVersion(user, latestVersion);
+    clearMenuRefresh(ctx, latestVersion);
+    logBotEvent(ctx, {
+      action: "User Version Updated After Feature Access",
+      currentVersion,
+      latestVersion,
+      menuRefreshed: true,
+      notificationNeeded: false,
+      versionActivated: true,
+      notificationSent: false,
+    });
+    return true;
+  } catch (error) {
+    logBotEvent(ctx, {
+      action: "Bot User Version Update Failed",
+      currentVersion,
+      latestVersion,
+      menuRefreshed: true,
+      notificationNeeded: false,
+      versionActivated: false,
+      notificationSent: false,
+      apiError: error?.message || error,
+    });
+    return false;
+  }
+}
+
 async function answerCallback(ctx) {
   if (!ctx.callbackQuery) {
     return;
@@ -169,12 +273,7 @@ async function answerCallback(ctx) {
   }
 }
 
-function buildUpdateNotification(latestVersion) {
-  const featureLines = getFeatureLines(latestVersion).map(formatFeatureLine);
-  const featureBlock = featureLines.length
-    ? featureLines.join("\n\n")
-    : `${EMOJIS.sparkle} Latest improvements`;
-
+function buildUpdateNotification() {
   return [
     SEPARATOR,
     "",
@@ -182,89 +281,32 @@ function buildUpdateNotification(latestVersion) {
     "",
     "New Features Added",
     "",
-    featureBlock,
-    "",
-    "To activate and view the latest features,",
-    "",
-    "please run:",
+    "Please run:",
     "",
     "/start",
     "",
-    "After running /start,",
-    "your menu will be refreshed automatically.",
+    "to refresh your menu.",
     "",
     SEPARATOR,
   ].join("\n");
 }
 
-function getFeatureLines(latestVersion) {
-  if (Array.isArray(latestVersion?.features) && latestVersion.features.length) {
-    return latestVersion.features;
-  }
-
-  const releaseNotes = String(latestVersion?.releaseNotes || "").trim();
-
-  if (!releaseNotes) {
-    return [];
-  }
-
-  return releaseNotes
-    .split(/\r?\n|,|;/)
-    .map((item) => item.trim())
-    .filter(Boolean);
+function logVersionDecision(details) {
+  console.log(details);
 }
 
-function formatFeatureLine(feature) {
-  const label = cleanFeatureLabel(feature);
-
-  if (!label) {
-    return `${EMOJIS.sparkle} Latest improvements`;
-  }
-
-  return `${getFeatureEmoji(label)} ${label}`;
-}
-
-function cleanFeatureLabel(feature) {
-  return String(feature)
-    .trim()
-    .replace(/\s+added$/i, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function getFeatureEmoji(feature) {
-  if (/timetable/i.test(feature)) {
-    return EMOJIS.calendar;
-  }
-
-  if (/attendance/i.test(feature)) {
-    return EMOJIS.chart;
-  }
-
-  if (/syllabus/i.test(feature)) {
-    return EMOJIS.clipboard;
-  }
-
-  if (/question|bank/i.test(feature)) {
-    return EMOJIS.book;
-  }
-
-  if (/study|material/i.test(feature)) {
-    return EMOJIS.openBook;
-  }
-
-  if (/internal|marks|exam|test/i.test(feature)) {
-    return EMOJIS.memo;
-  }
-
-  return EMOJIS.sparkle;
-}
-
-function logVersionCheck(ctx, currentVersion, latestVersion, notificationSent) {
+function logVersionCheck(
+  ctx,
+  currentVersion,
+  latestVersion,
+  notificationSent,
+  details = {}
+) {
   logBotEvent(ctx, {
     action: "Version Check",
     currentVersion,
     latestVersion,
+    ...details,
     notificationSent,
   });
 }
