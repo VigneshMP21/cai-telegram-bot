@@ -353,6 +353,18 @@ function normalizeAttendance(payload, month, year) {
     return null;
   }
 
+  const flatMonthly = buildStats(record, {
+    percentage: ["month_percentage"],
+    conducted: ["month_conducted"],
+    attended: ["month_attended"],
+    missed: ["month_missed"],
+  });
+  const flatOverall = buildStats(record, {
+    percentage: ["overall_percentage"],
+    conducted: ["overall_conducted"],
+    attended: ["overall_attended"],
+    missed: ["overall_missed"],
+  });
   const monthlySource =
     pickObject(record, MONTHLY_SOURCE_KEYS) ||
     pickObject(body, MONTHLY_SOURCE_KEYS) ||
@@ -361,14 +373,24 @@ function normalizeAttendance(payload, month, year) {
     pickObject(record, OVERALL_SOURCE_KEYS) ||
     pickObject(body, OVERALL_SOURCE_KEYS) ||
     record;
-  const monthly = buildStats(monthlySource, MONTHLY_STAT_KEYS);
-  const overall = buildStats(overallSource, OVERALL_STAT_KEYS);
+  const monthly = mergeStats(
+    buildStats(monthlySource, MONTHLY_STAT_KEYS),
+    flatMonthly
+  );
+  const overall = mergeStats(
+    buildStats(overallSource, OVERALL_STAT_KEYS),
+    flatOverall
+  );
 
   if (!hasStats(monthly) && !hasStats(overall)) {
     return null;
   }
 
-  return {
+  const normalizedAttendance = {
+    rollNo:
+      toCleanString(
+        pickValue(record, ["roll_no", "rollNo", "roll_number", "rollNumber"])
+      ) || null,
     studentName:
       toCleanString(pickValue(record, STUDENT_NAME_KEYS)) ||
       toCleanString(pickValue(body, STUDENT_NAME_KEYS)) ||
@@ -383,6 +405,10 @@ function normalizeAttendance(payload, month, year) {
     monthly,
     overall,
   };
+
+  console.log("NORMALIZED ATTENDANCE", normalizedAttendance);
+
+  return normalizedAttendance;
 }
 
 function buildStats(source, statKeys) {
@@ -404,6 +430,15 @@ function buildStats(source, statKeys) {
 
 function hasStats(stats) {
   return Object.values(stats).some((value) => value != null);
+}
+
+function mergeStats(primary, fallback) {
+  return {
+    percentage: primary.percentage ?? fallback.percentage,
+    conducted: primary.conducted ?? fallback.conducted,
+    attended: primary.attended ?? fallback.attended,
+    missed: primary.missed ?? fallback.missed,
+  };
 }
 
 function unwrapRecord(value) {
