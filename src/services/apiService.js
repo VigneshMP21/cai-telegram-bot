@@ -98,6 +98,49 @@ async function request(endpoint, params) {
   return retryPayload;
 }
 
+async function post(endpoint, data) {
+  const body = encodeFormData(data);
+  const headers = buildRequestHeaders({
+    "Content-Type": "application/x-www-form-urlencoded",
+  });
+  const response = await postWithNetworkRetry(endpoint, body, {
+    headers,
+  });
+  const payload = parsePayload(response.data);
+
+  if (!isInfinityFreeChallenge(payload)) {
+    if (response.status >= 400) {
+      throw new Error(`CAI API POST request failed with status ${response.status}.`);
+    }
+
+    return payload;
+  }
+
+  infinityFreeCookie = solveInfinityFreeChallenge(payload);
+
+  if (!infinityFreeCookie) {
+    throw new Error("Unable to solve InfinityFree API challenge.");
+  }
+
+  const retryResponse = await postWithNetworkRetry(endpoint, body, {
+    params: { i: 1 },
+    headers: buildRequestHeaders({
+      "Content-Type": "application/x-www-form-urlencoded",
+    }),
+  });
+  const retryPayload = parsePayload(retryResponse.data);
+
+  if (isInfinityFreeChallenge(retryPayload)) {
+    throw new Error("InfinityFree API challenge retry failed.");
+  }
+
+  if (retryResponse.status >= 400) {
+    throw new Error(`CAI API POST retry failed with status ${retryResponse.status}.`);
+  }
+
+  return retryPayload;
+}
+
 async function getWithNetworkRetry(endpoint, options) {
   try {
     return await apiClient.get(endpoint, options);
@@ -113,6 +156,24 @@ async function getWithNetworkRetry(endpoint, options) {
     });
 
     return apiClient.get(endpoint, options);
+  }
+}
+
+async function postWithNetworkRetry(endpoint, data, options) {
+  try {
+    return await apiClient.post(endpoint, data, options);
+  } catch (error) {
+    if (!isRetryableNetworkError(error)) {
+      throw error;
+    }
+
+    console.error("[CAI_BOT] API POST network error, retrying once", {
+      endpoint,
+      code: error.code,
+      message: error.message,
+    });
+
+    return apiClient.post(endpoint, data, options);
   }
 }
 
@@ -134,15 +195,34 @@ function parsePayload(payload) {
   }
 }
 
-function buildRequestHeaders() {
+function buildRequestHeaders(extraHeaders = {}) {
+  const headers = {
+    ...DEFAULT_HEADERS,
+    ...extraHeaders,
+  };
+
   if (!infinityFreeCookie) {
-    return DEFAULT_HEADERS;
+    return headers;
   }
 
   return {
-    ...DEFAULT_HEADERS,
+    ...headers,
     Cookie: infinityFreeCookie,
   };
+}
+
+function encodeFormData(data = {}) {
+  const formData = new URLSearchParams();
+
+  Object.entries(data).forEach(([key, value]) => {
+    if (value == null || value === "") {
+      return;
+    }
+
+    formData.append(key, String(value));
+  });
+
+  return formData.toString();
 }
 
 function isRetryableNetworkError(error) {
@@ -324,6 +404,7 @@ function isPlainObject(value) {
 module.exports = {
   API_BASE_URL,
   request,
+  post,
   getSemesters,
   getSubjects,
   getMaterial,

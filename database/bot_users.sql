@@ -1,7 +1,0 @@
-CREATE TABLE IF NOT EXISTS bot_users (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  telegram_user_id BIGINT NOT NULL UNIQUE,
-  username VARCHAR(255) NULL,
-  last_version_seen VARCHAR(50) NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);

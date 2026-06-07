@@ -5,8 +5,8 @@ const { Telegraf, session } = require("telegraf");
 
 const { registerStartCommand } = require("./commands/start");
 const {
-  createFeatureUpdateNotifier,
-} = require("./middleware/featureUpdateNotifier");
+  createVersionCheckMiddleware,
+} = require("./middlewares/versionCheck");
 const registerAttendanceHandler = require("./handlers/attendanceHandler");
 const registerTimetableHandler = require("./handlers/timetableHandler");
 const registerQuestionBankHandler = require("./handlers/questionBankHandler");
@@ -25,7 +25,7 @@ const PORT = process.env.PORT || 3000;
 const bot = new Telegraf(token);
 
 bot.use(session());
-bot.use(createFeatureUpdateNotifier());
+bot.use(createVersionCheckMiddleware());
 
 app.get("/", (req, res) => {
   res.send("CAI Telegram Bot Running");
