@@ -2,7 +2,7 @@ const { getAttendance } = require("../services/attendanceService");
 const { MAIN_MENU_OPTIONS } = require("../utils/keyboard");
 const { logBotEvent } = require("../utils/logger");
 
-const PORTAL_URL = "https://sietkcai.infinityfreeapp.com/attendance.php";
+const PORTAL_URL = "https://sietkcai.infinityfreeapp.com/monthly_attendance.php";
 const HTML_OPTIONS = {
   parse_mode: "HTML",
   disable_web_page_preview: true,
@@ -28,7 +28,7 @@ const ROLL_NUMBER_PROMPT = `━━━━━━━━━━━━━━━
 Please enter your Roll Number.
 
 Example:
-<code>23CS001</code>
+<code>23F61Axxxx</code>
 ━━━━━━━━━━━━━━━`;
 
 const MONTH_PROMPT = `━━━━━━━━━━━━━━━
@@ -188,43 +188,30 @@ function buildAttendanceMessage(attendance) {
 <i>"Regular attendance is the foundation of academic success.
 Every class attended is another step toward your goals."</i>
 
-━━━━━━━━━━━━━━━━━━━━
-
+━━━━━━━━━━━━━━━━━━━━━━━━━
 <b>📅 ${escapeHtml(attendance.monthName)} ${escapeHtml(
     attendance.year
   )} Attendance</b>
 
-📊 <b>Percentage:</b>
-${formatPercentage(attendance.monthly.percentage)}
+📊 <b>Percentage:${formatPercentage(attendance.monthly.percentage)}</b>
 
-📚 <b>Classes Conducted:</b>
-${formatCount(attendance.monthly.conducted)}
+📚 <b>Classes Conducted:${formatCount(attendance.monthly.conducted)}</b>
 
-✅ <b>Classes Attended:</b>
-${formatCount(attendance.monthly.attended)}
+✅ <b>Classes Attended:${formatCount(attendance.monthly.attended)}</b>
 
-❌ <b>Classes Missed:</b>
-${formatCount(attendance.monthly.missed)}
-
-━━━━━━━━━━━━━━━━━━━━
-
+❌ <b>Classes Missed:${formatCount(attendance.monthly.missed)}</b>
+━━━━━━━━━━━━━━━━━━━━━━━━━
 <b>🏆 Overall Attendance</b>
 
-📊 <b>Percentage:</b>
-${formatPercentage(attendance.overall.percentage)}
+📊 <b>Percentage:${formatPercentage(attendance.overall.percentage)}</b>
 
-📚 <b>Classes Conducted:</b>
-${formatCount(attendance.overall.conducted)}
+📚 <b>Classes Conducted:${formatCount(attendance.overall.conducted)}</b>
 
-✅ <b>Classes Attended:</b>
-${formatCount(attendance.overall.attended)}
+✅ <b>Classes Attended:${formatCount(attendance.overall.attended)}</b>
 
-❌ <b>Classes Missed:</b>
-${formatCount(attendance.overall.missed)}
-
-━━━━━━━━━━━━━━━━━━━━
-
-Keep up the great work! 🚀`;
+❌ <b>Classes Missed:${formatCount(attendance.overall.missed)}</b>
+━━━━━━━━━━━━━━━━━━━━━━━━━
+<i>Keep up the great work! 🚀</i>`;
 }
 
 function buildNoDataMessage(month, year) {
