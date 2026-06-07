@@ -159,7 +159,7 @@ async function getAttendance(rollNo, month, year) {
   console.log(month);
   console.log("YEAR:");
   console.log(year);
-  console.log("Attendance URL:", attendanceUrl);
+  console.log("ATTENDANCE URL:", attendanceUrl);
 
   let payload;
 
@@ -168,6 +168,8 @@ async function getAttendance(rollNo, month, year) {
       params: requestParams,
     });
 
+    console.log("RESPONSE HEADERS:");
+    console.log(response.headers);
     console.log("RESPONSE TYPE:", typeof response.data);
     console.log("FULL RESPONSE:", response.data);
 
@@ -558,6 +560,7 @@ function normalizeRollNumber(value) {
 
 function rejectHtmlResponse(payload) {
   if (typeof payload === "string" && payload.includes("<html")) {
+    console.log("HTML CHECK RESULT");
     throw new Error("HTML response detected");
   }
 }
