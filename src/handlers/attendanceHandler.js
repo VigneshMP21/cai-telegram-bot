@@ -1,7 +1,11 @@
-const { getAttendance } = require("../services/attendanceService");
+const {
+  checkRollNumberExists,
+  getAttendance,
+} = require("../services/attendanceService");
 const { MAIN_MENU_OPTIONS } = require("../utils/keyboard");
 const { logBotEvent } = require("../utils/logger");
 
+const PORTAL_URL = "https://sietkcai.infinityfreeapp.com/monthly_attendance.php";
 const HTML_OPTIONS = {
   parse_mode: "HTML",
   disable_web_page_preview: true,
@@ -131,6 +135,27 @@ async function handleRollNumber(ctx, messageText) {
     return ctx.reply(INVALID_ROLL_NUMBER_MESSAGE, HTML_OPTIONS);
   }
 
+  let rollNumberExists;
+
+  try {
+    rollNumberExists = await checkRollNumberExists(rollNo);
+  } catch (error) {
+    logBotEvent(ctx, {
+      action: "Roll Number Check Failed",
+      rollNumber: rollNo,
+      apiError: error?.message || error,
+    });
+    return ctx.reply(API_FAILURE_MESSAGE);
+  }
+
+  if (!rollNumberExists) {
+    logBotEvent(ctx, {
+      action: "Roll Number Not Matched",
+      rollNumber: rollNo,
+    });
+    return ctx.reply(buildRollNotMatchedMessage(rollNo), HTML_OPTIONS);
+  }
+
   ctx.session.attendance = {
     step: "month",
     rollNo,
@@ -185,7 +210,7 @@ async function handleMonthSelection(ctx, messageText, rollNo) {
   clearAttendanceSession(ctx);
 
   if (!attendance) {
-    return ctx.reply(buildNoDataMessage(rollNo, month, year), HTML_OPTIONS);
+    return ctx.reply(buildNoDataMessage(month, year), HTML_OPTIONS);
   }
 
   return sendAttendanceReport(ctx, attendance);
@@ -239,16 +264,25 @@ ${ATTENDANCE_SEPARATOR}
 Keep up the good work and stay consistent.`;
 }
 
-function buildNoDataMessage(rollNo, month, year) {
+function buildRollNotMatchedMessage(rollNo) {
   return `❌ Roll Number Not Matched
 
-No attendance details found for:
+No student record found for:
 <b>${escapeHtml(rollNo)}</b>
 
-Month:
-<b>${escapeHtml(getMonthName(month))} ${escapeHtml(year)}</b>
-
 Please check your roll number and try again.`;
+}
+
+function buildNoDataMessage(month, year) {
+  return `❌ Attendance Details Not Found
+
+In <b>${escapeHtml(getMonthName(month))}, ${escapeHtml(
+    year
+  )}</b> attendance details not found.
+
+You can check in the portal also.
+
+${PORTAL_URL}`;
 }
 
 function parseMonthSelection(messageText) {

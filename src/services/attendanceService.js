@@ -134,6 +134,8 @@ const OVERALL_STAT_KEYS = {
     "absent",
   ],
 };
+const ROLL_NOT_FOUND_PATTERN =
+  /not\s+found|not\s+matched|no\s+(student|roll|record|data)|invalid\s+(roll|student)/i;
 
 async function getAttendance(rollNo, month, year) {
   const payload = await request("/get_attendance.php", {
@@ -143,6 +145,54 @@ async function getAttendance(rollNo, month, year) {
   });
 
   return normalizeAttendance(payload, month, year);
+}
+
+async function checkRollNumberExists(rollNo) {
+  const payload = await request("/get_attendance.php", {
+    roll_no: rollNo,
+  });
+
+  return normalizeRollNumberExists(payload);
+}
+
+function normalizeRollNumberExists(payload) {
+  const body = parsePayload(payload);
+
+  if (body == null) {
+    return false;
+  }
+
+  if (typeof body === "string") {
+    return !ROLL_NOT_FOUND_PATTERN.test(body);
+  }
+
+  if (Array.isArray(body)) {
+    return body.length > 0;
+  }
+
+  if (!isPlainObject(body)) {
+    return false;
+  }
+
+  const message = toCleanString(pickValue(body, ["message", "error"]));
+
+  if (message && ROLL_NOT_FOUND_PATTERN.test(message)) {
+    return false;
+  }
+
+  const status = toCleanString(pickValue(body, ["status", "success"]));
+
+  if (/^(false|0|failed|failure|error|not_found|no_data)$/i.test(status)) {
+    return false;
+  }
+
+  const record = unwrapRecord(body);
+
+  if (isPlainObject(record)) {
+    return true;
+  }
+
+  return /^(true|1|success|ok)$/i.test(status);
 }
 
 function normalizeAttendance(payload, month, year) {
@@ -344,5 +394,6 @@ function isPlainObject(value) {
 }
 
 module.exports = {
+  checkRollNumberExists,
   getAttendance,
 };
