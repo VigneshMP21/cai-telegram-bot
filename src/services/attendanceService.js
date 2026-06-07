@@ -151,7 +151,7 @@ async function getAttendance(rollNo, month, year) {
     month,
     year,
   };
-  const attendanceUrl = buildApiUrl("/get_attendance.php", requestParams);
+  const attendanceUrl = buildApiUrl("/get_attendance_bot.php", requestParams);
 
   console.log("ROLL NUMBER:");
   console.log(normalizedRollNo);
@@ -159,16 +159,18 @@ async function getAttendance(rollNo, month, year) {
   console.log(month);
   console.log("YEAR:");
   console.log(year);
-  console.log("ATTENDANCE URL:", attendanceUrl);
+  console.log("Attendance URL:", attendanceUrl);
 
   let payload;
 
   try {
-    const response = await axios.get(buildApiUrl("/get_attendance.php"), {
+    const response = await axios.get(buildApiUrl("/get_attendance_bot.php"), {
       params: requestParams,
     });
 
-    console.log("ATTENDANCE RESPONSE:");
+    rejectHtmlResponse(response.data);
+
+    console.log("Attendance Response:");
     console.log(JSON.stringify(response.data, null, 2));
 
     if (response.data?.status !== true) {
@@ -177,7 +179,7 @@ async function getAttendance(rollNo, month, year) {
 
     payload = response.data.data;
   } catch (error) {
-    console.log("ATTENDANCE ERROR:");
+    console.log("Attendance Error:");
     console.log(error.response?.data);
     throw error;
   }
@@ -549,6 +551,16 @@ function toCleanString(value) {
 
 function normalizeRollNumber(value) {
   return String(value || "").trim().toUpperCase();
+}
+
+function rejectHtmlResponse(payload) {
+  if (typeof payload !== "string") {
+    return;
+  }
+
+  if (/^\s*<html[\s>]/i.test(payload)) {
+    throw new Error("Attendance API returned HTML instead of JSON.");
+  }
 }
 
 function buildApiUrl(endpoint, params = {}) {
