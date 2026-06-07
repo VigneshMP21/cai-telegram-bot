@@ -114,6 +114,9 @@ async function handleAttendanceMenu(ctx) {
 async function handleRollNumber(ctx, messageText) {
   const rollNo = normalizeRollNumberInput(messageText);
 
+  console.log("ROLL NUMBER ENTERED:");
+  console.log(rollNo);
+
   if (!isValidRollNumber(rollNo)) {
     logBotEvent(ctx, {
       action: "Invalid Roll Number",

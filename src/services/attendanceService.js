@@ -1,4 +1,4 @@
-const { request } = require("./apiService");
+const { API_BASE_URL, request } = require("./apiService");
 
 const MONTH_NAMES = [
   "January",
@@ -156,10 +156,19 @@ async function getAttendance(rollNo, month, year) {
 
 async function checkStudent(rollNo) {
   const normalizedRollNo = normalizeRollNumber(rollNo);
-  const payload = await request("/check_student.php", {
+  const requestPayload = {
     roll_no: normalizedRollNo,
     roll_number: normalizedRollNo,
-  });
+  };
+  const apiUrl = buildApiUrl("/check_student.php", requestPayload);
+
+  console.log("API URL:");
+  console.log(apiUrl);
+
+  const payload = await request("/check_student.php", requestPayload);
+
+  console.log("API RESPONSE:");
+  console.log(JSON.stringify(payload, null, 2));
 
   return normalizeStudent(payload, normalizedRollNo);
 }
@@ -438,6 +447,18 @@ function toCleanString(value) {
 
 function normalizeRollNumber(value) {
   return String(value || "").trim().toUpperCase();
+}
+
+function buildApiUrl(endpoint, params = {}) {
+  const query = new URLSearchParams(
+    Object.entries(params).filter(([, value]) => value != null && value !== "")
+  ).toString();
+  const url = `${API_BASE_URL.replace(/\/+$/, "")}/${endpoint.replace(
+    /^\/+/,
+    ""
+  )}`;
+
+  return query ? `${url}?${query}` : url;
 }
 
 function parsePayload(payload) {
