@@ -135,7 +135,7 @@ const OVERALL_STAT_KEYS = {
   ],
 };
 const ROLL_NOT_FOUND_PATTERN =
-  /not\s+found|not\s+matched|no\s+(student|roll|record|data)|invalid\s+(roll|student)/i;
+  /(?:roll(?:\s+number)?|student).*?(?:not\s+found|not\s+matched|does\s+not\s+exist)|(?:not\s+found|not\s+matched).*?(?:roll(?:\s+number)?|student)|invalid\s+(?:roll|student)|no\s+(?:student|roll)(?:\s+(?:record|data))?/i;
 
 async function getAttendance(rollNo, month, year) {
   const payload = await request("/get_attendance.php", {
@@ -183,7 +183,7 @@ function normalizeRollNumberExists(payload) {
   const status = toCleanString(pickValue(body, ["status", "success"]));
 
   if (/^(false|0|failed|failure|error|not_found|no_data)$/i.test(status)) {
-    return false;
+    return true;
   }
 
   const record = unwrapRecord(body);
