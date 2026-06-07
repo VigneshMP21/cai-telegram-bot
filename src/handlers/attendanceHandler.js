@@ -112,7 +112,7 @@ async function handleAttendanceMenu(ctx) {
 }
 
 async function handleRollNumber(ctx, messageText) {
-  const rollNo = messageText.toUpperCase();
+  const rollNo = normalizeRollNumberInput(messageText);
 
   if (!isValidRollNumber(rollNo)) {
     logBotEvent(ctx, {
@@ -311,6 +311,10 @@ function parseMonthSelection(messageText) {
 
 function isValidRollNumber(rollNo) {
   return /^[A-Z0-9]{3,20}$/.test(rollNo);
+}
+
+function normalizeRollNumberInput(value) {
+  return String(value || "").trim().toUpperCase();
 }
 
 function isMainMenuSelection(messageText) {

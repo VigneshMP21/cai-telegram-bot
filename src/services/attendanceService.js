@@ -144,8 +144,9 @@ const OVERALL_STAT_KEYS = {
   ],
 };
 async function getAttendance(rollNo, month, year) {
+  const normalizedRollNo = normalizeRollNumber(rollNo);
   const payload = await request("/get_attendance.php", {
-    roll_no: rollNo,
+    roll_no: normalizedRollNo,
     month,
     year,
   });
@@ -154,12 +155,13 @@ async function getAttendance(rollNo, month, year) {
 }
 
 async function checkStudent(rollNo) {
+  const normalizedRollNo = normalizeRollNumber(rollNo);
   const payload = await request("/check_student.php", {
-    roll_no: rollNo,
-    roll_number: rollNo,
+    roll_no: normalizedRollNo,
+    roll_number: normalizedRollNo,
   });
 
-  return normalizeStudent(payload, rollNo);
+  return normalizeStudent(payload, normalizedRollNo);
 }
 
 function normalizeStudent(payload, rollNo) {
@@ -432,6 +434,10 @@ function toCleanString(value) {
   }
 
   return String(value).trim();
+}
+
+function normalizeRollNumber(value) {
+  return String(value || "").trim().toUpperCase();
 }
 
 function parsePayload(payload) {
