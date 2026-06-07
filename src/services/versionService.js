@@ -46,6 +46,8 @@ async function saveBotUser(user) {
 
   try {
     responseBody = await postJson(SAVE_USER_ENDPOINT, requestPayload);
+    console.log("RAW API RESPONSE");
+    console.log(responseBody);
     console.log("[CAI_BOT] saveBotUser response body", responseBody);
   } catch (error) {
     console.error("[CAI_BOT] saveBotUser error.response.data", {
@@ -56,8 +58,17 @@ async function saveBotUser(user) {
   }
 
   const payload = assertSuccessfulPayload(responseBody, "save bot user");
+  const mappedUser = normalizeUserVersionPayload(payload, normalizedUser);
 
-  return normalizeUserVersionPayload(payload, normalizedUser);
+  console.log("MAPPED USER");
+  console.log(mappedUser);
+  console.log({
+    rawResponse: payload,
+    mappedUser,
+    currentVersion: String(mappedUser.last_version_seen || "").trim(),
+  });
+
+  return mappedUser;
 }
 
 async function updateUserVersion(user, latestVersion) {
@@ -119,6 +130,9 @@ function normalizeUserVersionPayload(payload, user, fallbackVersion = null) {
   const body = parsePayload(payload);
   const record = findRecordByKeys(body, LAST_VERSION_KEYS) || {};
   const lastVersionSeen =
+    toCleanString(body?.data?.last_version_seen) ||
+    toCleanString(body?.data?.user?.last_version_seen) ||
+    toCleanString(body?.user?.last_version_seen) ||
     toCleanString(record.last_version_seen) ||
     toCleanString(findValueByKeys(body, LAST_VERSION_KEYS)) ||
     toCleanString(fallbackVersion) ||
