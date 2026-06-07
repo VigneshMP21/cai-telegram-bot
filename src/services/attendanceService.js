@@ -1,4 +1,4 @@
-const { API_BASE_URL, request } = require("./apiService");
+const { API_BASE_URL, post, request } = require("./apiService");
 
 const MONTH_NAMES = [
   "January",
@@ -155,22 +155,46 @@ async function getAttendance(rollNo, month, year) {
 }
 
 async function checkStudent(rollNo) {
-  const normalizedRollNo = normalizeRollNumber(rollNo);
+  const rollNumber = normalizeRollNumber(rollNo);
   const requestPayload = {
-    roll_no: normalizedRollNo,
-    roll_number: normalizedRollNo,
+    roll_no: rollNumber,
   };
-  const apiUrl = buildApiUrl("/check_student.php", requestPayload);
+  const apiUrl = buildApiUrl("/check_student.php");
 
   console.log("API URL:");
   console.log(apiUrl);
+  console.log("CHECK STUDENT REQUEST:", requestPayload);
 
-  const payload = await request("/check_student.php", requestPayload);
+  const responseData = await post("/check_student.php", requestPayload);
 
-  console.log("API RESPONSE:");
-  console.log(JSON.stringify(payload, null, 2));
+  console.log("CHECK STUDENT RESPONSE:", responseData);
 
-  return normalizeStudent(payload, normalizedRollNo);
+  return normalizeStudentCheck(responseData, rollNumber);
+}
+
+function normalizeStudentCheck(payload, rollNo) {
+  const body = parsePayload(payload);
+  const message = getApiMessage(body);
+
+  if (!isPlainObject(body) || body.status !== true) {
+    return {
+      status: false,
+      message,
+      student: null,
+      raw: body,
+    };
+  }
+
+  return {
+    status: true,
+    message,
+    student: normalizeStudent(body, rollNo) || {
+      rollNo,
+      studentName: "Student",
+      photoUrl: null,
+    },
+    raw: body,
+  };
 }
 
 function normalizeStudent(payload, rollNo) {
@@ -271,6 +295,18 @@ function hasExplicitFalse(value, keys) {
   }
 
   return /^(false|0|no|not_found|missing)$/i.test(String(rawValue).trim());
+}
+
+function getApiMessage(value) {
+  const body = parsePayload(value);
+
+  if (!isPlainObject(body)) {
+    return "";
+  }
+
+  return toCleanString(
+    pickValue(body, ["message", "error", "msg", "description"])
+  );
 }
 
 function normalizeAttendance(payload, month, year) {
@@ -449,16 +485,11 @@ function normalizeRollNumber(value) {
   return String(value || "").trim().toUpperCase();
 }
 
-function buildApiUrl(endpoint, params = {}) {
-  const query = new URLSearchParams(
-    Object.entries(params).filter(([, value]) => value != null && value !== "")
-  ).toString();
-  const url = `${API_BASE_URL.replace(/\/+$/, "")}/${endpoint.replace(
+function buildApiUrl(endpoint) {
+  return `${API_BASE_URL.replace(/\/+$/, "")}/${endpoint.replace(
     /^\/+/,
     ""
   )}`;
-
-  return query ? `${url}?${query}` : url;
 }
 
 function parsePayload(payload) {

@@ -30,13 +30,6 @@ const ROLL_NUMBER_PROMPT = `🆔 <b>Enter Your Roll Number</b>
 Example:
 <code>23CS001</code>`;
 
-const ROLL_NUMBER_NOT_FOUND_MESSAGE = `❌ <b>Roll Number Not Found</b>
-
-Please enter a valid roll number.
-
-Example:
-<code>23CS001</code>`;
-
 const INVALID_MONTH_MESSAGE = `⚠️ <b>Invalid Format</b>
 
 Please enter month as:
@@ -112,49 +105,54 @@ async function handleAttendanceMenu(ctx) {
 }
 
 async function handleRollNumber(ctx, messageText) {
-  const rollNo = normalizeRollNumberInput(messageText);
+  const rollNumber = normalizeRollNumberInput(messageText);
 
-  console.log("ROLL NUMBER ENTERED:");
-  console.log(rollNo);
+  console.log("ROLL NUMBER USER INPUT:", rollNumber);
 
-  if (!isValidRollNumber(rollNo)) {
+  if (!isValidRollNumber(rollNumber)) {
     logBotEvent(ctx, {
       action: "Invalid Roll Number",
       rollNumber: messageText,
     });
-    return ctx.reply(ROLL_NUMBER_NOT_FOUND_MESSAGE, HTML_OPTIONS);
+    return ctx.reply(buildRollNumberNotFoundMessage(), HTML_OPTIONS);
   }
 
-  let student;
+  let studentCheck;
 
   try {
-    student = await checkStudent(rollNo);
+    studentCheck = await checkStudent(rollNumber);
   } catch (error) {
     logBotEvent(ctx, {
       action: "Roll Number Check Failed",
-      rollNumber: rollNo,
+      rollNumber,
       apiError: error?.message || error,
     });
     return ctx.reply(API_FAILURE_MESSAGE);
   }
 
-  if (!student) {
+  if (studentCheck.status !== true) {
     logBotEvent(ctx, {
       action: "Roll Number Not Found",
-      rollNumber: rollNo,
+      rollNumber,
+      apiMessage: studentCheck.message,
     });
-    return ctx.reply(ROLL_NUMBER_NOT_FOUND_MESSAGE, HTML_OPTIONS);
+    return ctx.reply(
+      buildRollNumberNotFoundMessage(studentCheck.message),
+      HTML_OPTIONS
+    );
   }
+
+  const student = studentCheck.student;
 
   ctx.session.attendance = {
     step: "month",
-    rollNo,
+    rollNo: rollNumber,
     student,
   };
 
   logBotEvent(ctx, {
     action: "Student Found",
-    rollNumber: rollNo,
+    rollNumber,
     studentName: student.studentName,
     attendanceStep: "Month",
   });
@@ -238,6 +236,17 @@ Now enter month in the format:
 Example:
 
 <code>06, 2025</code>`;
+}
+
+function buildRollNumberNotFoundMessage(apiMessage = "") {
+  const message = String(apiMessage || "").trim();
+
+  return `❌ <b>Roll Number Not Found</b>
+
+${message ? `${escapeHtml(message)}\n\n` : ""}Please enter a valid roll number.
+
+Example:
+<code>23CS001</code>`;
 }
 
 function applyStudentFallback(attendance, student) {
