@@ -145,11 +145,22 @@ const OVERALL_STAT_KEYS = {
 };
 async function getAttendance(rollNo, month, year) {
   const normalizedRollNo = normalizeRollNumber(rollNo);
+
+  console.log("ROLL NUMBER:");
+  console.log(normalizedRollNo);
+  console.log("MONTH:");
+  console.log(month);
+  console.log("YEAR:");
+  console.log(year);
+
   const payload = await request("/get_attendance.php", {
     roll_no: normalizedRollNo,
     month,
     year,
   });
+
+  console.log("ATTENDANCE API RESPONSE:");
+  console.log(JSON.stringify(payload, null, 2));
 
   return normalizeAttendance(payload, month, year);
 }
