@@ -198,7 +198,7 @@ async function getAttendance(rollNo, month, year) {
     payload = response.data.data;
   } catch (error) {
     console.log("Attendance Error:");
-    console.log(error.response?.data);
+    console.log(error.responseData ?? error.response?.data);
     throw error;
   }
 
@@ -207,14 +207,15 @@ async function getAttendance(rollNo, month, year) {
 
 async function getAttendanceResponse(endpoint, params) {
   const originalUrl = buildApiUrl(endpoint, params);
-  const response = await axios.get(buildApiUrl(endpoint), {
-    params,
-    headers: buildAttendanceHeaders(),
-  });
+  const response = await axios.get(
+    buildApiUrl(endpoint),
+    buildAttendanceRequestOptions(params)
+  );
 
   logAttendanceResponse(response);
 
   if (!isInfinityFreeChallenge(response.data)) {
+    rejectUnexpectedAttendanceStatus(response);
     return response;
   }
 
@@ -226,14 +227,15 @@ async function getAttendanceResponse(endpoint, params) {
 
   console.log("ATTENDANCE RETRY URL:", originalUrl);
 
-  const retryResponse = await axios.get(buildApiUrl(endpoint), {
-    params,
-    headers: buildAttendanceHeaders(),
-  });
+  const retryResponse = await axios.get(
+    buildApiUrl(endpoint),
+    buildAttendanceRequestOptions(params)
+  );
 
   logAttendanceResponse(retryResponse);
 
   if (!isInfinityFreeChallenge(retryResponse.data)) {
+    rejectUnexpectedAttendanceStatus(retryResponse);
     return retryResponse;
   }
 
@@ -241,15 +243,18 @@ async function getAttendanceResponse(endpoint, params) {
 
   console.log("ATTENDANCE RETRY URL:", challengeRetryUrl);
 
-  const challengeRetryResponse = await axios.get(challengeRetryUrl, {
-    headers: buildAttendanceHeaders(),
-  });
+  const challengeRetryResponse = await axios.get(
+    challengeRetryUrl,
+    buildAttendanceRequestOptions()
+  );
 
   logAttendanceResponse(challengeRetryResponse);
 
   if (isInfinityFreeChallenge(challengeRetryResponse.data)) {
     rejectHtmlResponse(challengeRetryResponse.data);
   }
+
+  rejectUnexpectedAttendanceStatus(challengeRetryResponse);
 
   return challengeRetryResponse;
 }
@@ -663,6 +668,19 @@ function logAttendanceResponse(response) {
   console.log("FULL RESPONSE:", response.data);
 }
 
+function buildAttendanceRequestOptions(params) {
+  const options = {
+    headers: buildAttendanceHeaders(),
+    validateStatus: () => true,
+  };
+
+  if (params) {
+    options.params = params;
+  }
+
+  return options;
+}
+
 function buildAttendanceHeaders() {
   if (!attendanceInfinityFreeCookie) {
     return ATTENDANCE_HEADERS;
@@ -672,6 +690,43 @@ function buildAttendanceHeaders() {
     ...ATTENDANCE_HEADERS,
     Cookie: attendanceInfinityFreeCookie,
   };
+}
+
+function rejectUnexpectedAttendanceStatus(response) {
+  const statusCode = Number(response?.status);
+
+  if (!Number.isFinite(statusCode) || statusCode < 400) {
+    return;
+  }
+
+  if (isAttendanceNotFoundResponse(response)) {
+    return;
+  }
+
+  throw createAttendanceStatusError(
+    `CAI attendance API request failed with status ${statusCode}.`,
+    response
+  );
+}
+
+function isAttendanceNotFoundResponse(response) {
+  const payload = parsePayload(response?.data);
+  const message =
+    getApiMessage(payload) || (typeof payload === "string" ? payload : "");
+
+  return (
+    Number(response?.status) === 404 &&
+    /attendance.*not\s+found|not\s+found|no\s+(attendance\s+)?data|no\s+record|unavailable/i.test(
+      message
+    )
+  );
+}
+
+function createAttendanceStatusError(message, response) {
+  const error = new Error(message);
+  error.statusCode = response?.status;
+  error.responseData = parsePayload(response?.data);
+  return error;
 }
 
 function getChallengeRetryUrl(payload) {

@@ -289,9 +289,9 @@ function buildNoDataMessage(month, year) {
 
 In <b>${escapeHtml(getMonthName(month))}, ${escapeHtml(
     year
-  )}</b> attendance details not found.
+  )}</b>, Attendance Details not found.
 
-You can also check in the portal:
+Please check in the Portal also:
 
 ${PORTAL_URL}`;
 }
