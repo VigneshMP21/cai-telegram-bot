@@ -265,11 +265,47 @@ async function checkStudent(rollNo) {
   console.log(apiUrl);
   console.log("CHECK STUDENT REQUEST:", requestPayload);
 
-  const responseData = await post("/check_student.php", requestPayload);
+  let responseData;
+
+  try {
+    responseData = await post("/check_student.php", requestPayload);
+  } catch (error) {
+    if (!isStudentNotFoundError(error)) {
+      throw error;
+    }
+
+    responseData = getErrorPayload(error) || {
+      status: false,
+      message: "Please enter valid Roll Number",
+    };
+  }
 
   console.log("CHECK STUDENT RESPONSE:", responseData);
 
   return normalizeStudentCheck(responseData, rollNumber);
+}
+
+function isStudentNotFoundError(error) {
+  const statusCode = Number(error?.statusCode ?? error?.response?.status);
+
+  if (statusCode === 404) {
+    return true;
+  }
+
+  const errorText = [
+    error?.message,
+    getApiMessage(getErrorPayload(error)),
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return /status\s+404|roll\s*number.*(invalid|not\s+found)|student.*not\s+found/i.test(
+    errorText
+  );
+}
+
+function getErrorPayload(error) {
+  return parsePayload(error?.responseData ?? error?.response?.data);
 }
 
 function normalizeStudentCheck(payload, rollNo) {

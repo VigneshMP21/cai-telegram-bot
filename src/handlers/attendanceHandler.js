@@ -42,6 +42,8 @@ Example:
 
 const API_FAILURE_MESSAGE =
   "⚠️ Unable to fetch attendance details. Please try again later.";
+const INVALID_ROLL_NUMBER_MESSAGE =
+  "\u26A0\uFE0F Please enter valid Roll Number";
 
 const ATTENDANCE_SEPARATOR = "\u2501".repeat(14);
 const BULLET = "\u2022";
@@ -114,7 +116,7 @@ async function handleRollNumber(ctx, messageText) {
       action: "Invalid Roll Number",
       rollNumber: messageText,
     });
-    return ctx.reply(buildRollNumberNotFoundMessage(), HTML_OPTIONS);
+    return ctx.reply(INVALID_ROLL_NUMBER_MESSAGE);
   }
 
   let studentCheck;
@@ -136,10 +138,7 @@ async function handleRollNumber(ctx, messageText) {
       rollNumber,
       apiMessage: studentCheck.message,
     });
-    return ctx.reply(
-      buildRollNumberNotFoundMessage(studentCheck.message),
-      HTML_OPTIONS
-    );
+    return ctx.reply(INVALID_ROLL_NUMBER_MESSAGE);
   }
 
   const student = studentCheck.student;
@@ -236,17 +235,6 @@ Now enter month in the format:
 Example:
 
 <code>06, 2025</code>`;
-}
-
-function buildRollNumberNotFoundMessage(apiMessage = "") {
-  const message = String(apiMessage || "").trim();
-
-  return `❌ <b>Roll Number Not Found</b>
-
-${message ? `${escapeHtml(message)}\n\n` : ""}Please enter a valid roll number.
-
-Example:
-<code>23CS001</code>`;
 }
 
 function applyStudentFallback(attendance, student) {

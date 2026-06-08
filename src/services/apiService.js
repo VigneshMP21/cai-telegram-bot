@@ -110,7 +110,11 @@ async function post(endpoint, data) {
 
   if (!isInfinityFreeChallenge(payload)) {
     if (response.status >= 400) {
-      throw new Error(`CAI API POST request failed with status ${response.status}.`);
+      throw createApiStatusError(
+        `CAI API POST request failed with status ${response.status}.`,
+        response,
+        payload
+      );
     }
 
     return payload;
@@ -135,7 +139,11 @@ async function post(endpoint, data) {
   }
 
   if (retryResponse.status >= 400) {
-    throw new Error(`CAI API POST retry failed with status ${retryResponse.status}.`);
+    throw createApiStatusError(
+      `CAI API POST retry failed with status ${retryResponse.status}.`,
+      retryResponse,
+      retryPayload
+    );
   }
 
   return retryPayload;
@@ -230,6 +238,13 @@ function parsePayload(payload) {
   } catch {
     return payload;
   }
+}
+
+function createApiStatusError(message, response, payload) {
+  const error = new Error(message);
+  error.statusCode = response?.status;
+  error.responseData = payload;
+  return error;
 }
 
 function buildRequestHeaders(extraHeaders = {}) {
