@@ -19,7 +19,18 @@ const IMAGE_URL_KEYS = [
 
 async function getTimetable() {
   const payload = await request("/get_timetable.php");
-  const imageUrl = findImageUrl(parsePayload(payload));
+  const parsed = parsePayload(payload);
+
+  // Handle nested response structure: { "success": true, "data": { "image_url": "..." } }
+  // Or flat structure: { "success": true, "image_url": "..." }
+  let responseData = parsed;
+
+  // If response has a "data" key, use that
+  if (parsed && typeof parsed === "object" && parsed.data != null) {
+    responseData = parsed.data;
+  }
+
+  const imageUrl = findImageUrl(responseData);
 
   return imageUrl ? { imageUrl } : null;
 }
