@@ -1,6 +1,7 @@
 const {
   checkStudent,
   getAttendance,
+  verifyPassword,
 } = require("../services/attendanceService");
 const { MAIN_MENU_OPTIONS } = require("../utils/keyboard");
 const { logBotEvent } = require("../utils/logger");
@@ -40,13 +41,22 @@ Example:
 
 <code>06, 2025</code>`;
 
+const PASSWORD_PROMPT = `🔐 <b>Enter Your Website Login Password</b>
+
+Please enter your CAI Portal password to view attendance details.
+
+<i>Hint: Use the same password you use to login to the website.</i>`;
+
+const INVALID_PASSWORD_MESSAGE = "❌ <b>Invalid Password</b>\n\nPlease enter a valid password.";
+const PASSWORD_VERIFIED_MESSAGE = "✅ <b>Password Verified</b>\n\nFetching your attendance details...";
+
 const API_FAILURE_MESSAGE =
   "⚠️ Unable to fetch attendance details. Please try again later.";
 const INVALID_ROLL_NUMBER_MESSAGE =
-  "\u26A0\uFE0F Please enter valid Roll Number";
+  "⚠️ Please enter valid Roll Number";
 
-const ATTENDANCE_SEPARATOR = "\u2501".repeat(14);
-const BULLET = "\u2022";
+const ATTENDANCE_SEPARATOR = "━".repeat(14);
+const BULLET = "•";
 const EMOJIS = {
   student: "\u{1F393}",
   calendar: "\u{1F4C5}",
@@ -81,6 +91,17 @@ function registerAttendanceHandler(bot) {
         messageText,
         attendanceState.rollNo,
         attendanceState.student
+      );
+    }
+
+    if (attendanceState.step === "password") {
+      return handlePasswordVerification(
+        ctx,
+        messageText,
+        attendanceState.rollNo,
+        attendanceState.student,
+        attendanceState.month,
+        attendanceState.year
       );
     }
 
@@ -174,11 +195,65 @@ async function handleMonthSelection(ctx, messageText, rollNo, student = null) {
   const { month, year } = selectedMonth;
 
   logBotEvent(ctx, {
-    action: "Attendance Request",
+    action: "Month Entered - Requesting Password",
+    rollNumber: rollNo,
+    month,
+    year,
+    attendanceStep: "Password",
+  });
+
+  // Store month/year and ask for password
+  ctx.session.attendance = {
+    step: "password",
+    rollNo: rollNo,
+    student: student,
+    month: month,
+    year: year,
+  };
+
+  return ctx.reply(PASSWORD_PROMPT, HTML_OPTIONS);
+}
+
+async function handlePasswordVerification(ctx, messageText, rollNo, student, month, year) {
+  const password = messageText.trim();
+
+  logBotEvent(ctx, {
+    action: "Password Verification",
     rollNumber: rollNo,
     month,
     year,
   });
+
+  let passwordResult;
+
+  try {
+    passwordResult = await verifyPassword(password);
+  } catch (error) {
+    logBotEvent(ctx, {
+      action: "Password Verify Failed",
+      rollNumber: rollNo,
+      apiError: error?.message || error,
+    });
+    return ctx.reply(API_FAILURE_MESSAGE);
+  }
+
+  if (passwordResult.status !== true) {
+    logBotEvent(ctx, {
+      action: "Invalid Password",
+      rollNumber: rollNo,
+    });
+    return ctx.reply(INVALID_PASSWORD_MESSAGE, HTML_OPTIONS);
+  }
+
+  // Password verified - show attendance
+  logBotEvent(ctx, {
+    action: "Password Verified - Fetching Attendance",
+    rollNumber: rollNo,
+    month,
+    year,
+  });
+
+  await ctx.reply(PASSWORD_VERIFIED_MESSAGE, HTML_OPTIONS);
 
   let attendance;
 

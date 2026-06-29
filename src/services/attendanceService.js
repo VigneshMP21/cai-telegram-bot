@@ -784,7 +784,55 @@ function isPlainObject(value) {
   return value != null && typeof value === "object" && !Array.isArray(value);
 }
 
+async function verifyPassword(password) {
+  if (!password || password.trim() === "") {
+    return { status: false, message: "Please enter a valid password" };
+  }
+
+  const requestPayload = {
+    password: password.trim(),
+  };
+
+  const apiUrl = buildApiUrl("/verify_password.php");
+
+  console.log("VERIFY PASSWORD API URL:", apiUrl);
+
+  let responseData;
+
+  try {
+    responseData = await post("/verify_password.php", requestPayload);
+  } catch (error) {
+    console.log("Password Verify Error:", error.message);
+    return { status: false, message: "Unable to verify password. Please try again." };
+  }
+
+  console.log("VERIFY PASSWORD RESPONSE:", responseData);
+
+  return normalizePasswordVerify(responseData);
+}
+
+function normalizePasswordVerify(payload) {
+  const body = parsePayload(payload);
+
+  if (!isPlainObject(body)) {
+    return { status: false, message: "Invalid response from server" };
+  }
+
+  if (body.status === true || body.success === true) {
+    return {
+      status: true,
+      message: body.message || "Password verified successfully",
+    };
+  }
+
+  return {
+    status: false,
+    message: body.message || body.error || "Invalid password",
+  };
+}
+
 module.exports = {
   checkStudent,
   getAttendance,
+  verifyPassword,
 };
